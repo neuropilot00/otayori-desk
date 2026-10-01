@@ -5,7 +5,7 @@ import re
 import threading
 import time
 import unicodedata
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html import unescape
@@ -517,6 +517,7 @@ class CatalogService:
         self.sources = load_sources(self.sources_path)
         self._cache: dict[tuple[str, str], tuple[float, CatalogResult]] = {}
         self._cache_ttl_seconds = max(30.0, float(getattr(settings, "web_cache_ttl_seconds", 300.0)))
+        self._max_wait_seconds = min(60.0, max(1.0, float(getattr(settings, "web_catalog_max_wait_seconds", 12.0))))
         self._lock = threading.RLock()
 
     def source_options(self) -> list[dict[str, Any]]:
@@ -575,16 +576,28 @@ class CatalogService:
 
         results: dict[str, CatalogResult] = {}
         errors: list[str] = []
-        with ThreadPoolExecutor(max_workers=min(4, len(selected))) as executor:
-            futures = {executor.submit(self.get_source, source.id, grade, refresh): source for source in selected}
-            for future in as_completed(futures):
-                source = futures[future]
-                try:
-                    results[source.id] = future.result()
-                except (CatalogError, FetchError, ExtractionError) as exc:
-                    errors.append(f"{source.name}: {exc}")
+        executor = ThreadPoolExecutor(max_workers=min(4, len(selected)))
+        futures = {executor.submit(self.get_source, source.id, grade, refresh): source for source in selected}
+        done, not_done = wait(futures, timeout=self._max_wait_seconds)
+        for future in done:
+            source = futures[future]
+            try:
+                results[source.id] = future.result()
+            except (CatalogError, FetchError, ExtractionError) as exc:
+                errors.append(f"{source.name}: {exc}")
+        for future in not_done:
+            source = futures[future]
+            future.cancel()
+            errors.append(f"{source.name}: source check exceeded {int(self._max_wait_seconds)} seconds")
+        # Do not make the parent request wait for slow upstream PDFs. Running
+        # tasks may still finish and populate the in-memory cache for the next
+        # request, while queued tasks are cancelled where possible.
+        executor.shutdown(wait=False, cancel_futures=True)
         ordered = [results[source.id] for source in selected if source.id in results]
         if not ordered:
+            if not_done:
+                source = selected[0]
+                return [CatalogResult(source, self._effective_grade(source, grade), datetime.now(timezone.utc).isoformat(), (), tuple(errors))]
             raise CatalogError("すべてのソースを確認できませんでした: " + " / ".join(errors))
         if errors:
             warning_results = []
