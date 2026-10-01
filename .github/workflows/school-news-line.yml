@@ -1,0 +1,85 @@
+name: 桜野小学校 おたより LINE 通知
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      grade:
+        description: "通知対象の学年（空欄なら Repository Variable SCHOOL_GRADE または 1年生）"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "候補を表示するだけで、状態保存・LINE送信をしない"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sakurano-school-news-line
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SCHOOL_GRADE: ${{ inputs.grade || vars.SCHOOL_GRADE || '1年生' }}
+      LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+      LINE_TO: ${{ secrets.LINE_TO }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+
+      # Prepare writes a pending request first. The commit makes that request
+      # recoverable before any external side effect is attempted.
+      - name: Prepare notification
+        if: ${{ inputs.dry_run != true }}
+        run: python -m sakurano_line_notifier prepare
+
+      - name: Commit prepared state
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          if git diff --quiet -- state/state.json; then
+            echo "No prepared state changes"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state/state.json
+            git commit -m "chore: update school notification state"
+            git push
+          fi
+
+      - name: Dry-run preview
+        if: ${{ inputs.dry_run == true }}
+        run: python -m sakurano_line_notifier run --dry-run
+
+      - name: Deliver notification
+        if: ${{ inputs.dry_run != true }}
+        run: python -m sakurano_line_notifier deliver
+
+      - name: Commit delivery state
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          if git diff --quiet -- state/state.json; then
+            echo "No delivery state changes"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state/state.json
+            git commit -m "chore: record school notification delivery"
+            git push
+          fi
+

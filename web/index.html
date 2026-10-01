@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f6fb">
+    <title>おたより desk — 学校のお知らせベータ</title>
+    <link rel="stylesheet" href="/app.css?v=20261001-5">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="おたより desk ホーム">
+          <span class="brand-mark" aria-hidden="true">お</span>
+          <span>
+            <strong>おたより desk</strong>
+            <small data-i18n="brand.subtitle">東京の学校だより / ベータ</small>
+          </span>
+        </a>
+        <div class="topbar-actions">
+          <span class="status-dot"><i aria-hidden="true"></i><span data-i18n="status.public">公開ページを確認中</span></span>
+          <label class="language-control"><span class="sr-only" data-i18n="language.label">表示言語</span><select id="language-filter" aria-label="表示言語"><option value="ja">日本語</option><option value="ko">한국어</option><option value="en">English</option><option value="zh">简体中文</option></select></label>
+          <button class="icon-button" id="theme-toggle" type="button" aria-label="テーマを切り替え" title="テーマを切り替え">☼</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <p class="eyebrow" data-i18n="hero.eyebrow">保護者向けベータ · 公開ソース</p>
+            <h1 id="hero-title" data-i18n-html="hero.title">学校のお知らせを、<br><em>ひとつにまとめて</em>。</h1>
+            <p class="hero-lede" data-i18n="hero.lede">学校ごとに別々のページを探さなくても、学校だより・学年だより・行事のお知らせをここでまとめて確認できます。</p>
+            <div class="hero-note"><span>i</span> <span data-i18n="hero.note">お子さまの学校・学年を選ぶと、必要なお知らせだけを表示します。</span></div>
+          </div>
+          <div class="hero-art" aria-hidden="true">
+            <div class="paper paper-back"></div>
+            <div class="paper paper-front">
+              <span class="paper-kicker">学校だより</span>
+              <span class="paper-title">9月のお知らせ</span>
+              <span class="paper-line long"></span>
+              <span class="paper-line"></span>
+              <span class="paper-line short"></span>
+              <span class="paper-stamp">NEW</span>
+            </div>
+            <div class="sun-shape"></div>
+          </div>
+        </section>
+
+        <section class="metrics" aria-label="ベータの状況">
+          <div class="metric-card"><span class="metric-label" data-i18n="metrics.schools">登録校</span><strong id="metric-schools">—</strong><span class="metric-foot" data-i18n="metrics.schoolsFoot">小・中・高のサンプル</span></div>
+          <div class="metric-card accent"><span class="metric-label" data-i18n="metrics.notices">今回の掲載数</span><strong id="metric-notices">—</strong><span class="metric-foot" data-i18n="metrics.noticesFoot">公開原文を基準</span></div>
+          <div class="metric-card"><span class="metric-label" data-i18n="metrics.wards">対応地域</span><strong id="metric-wards">—</strong><span class="metric-foot" data-i18n="metrics.wardsFoot">23区拡張用レジストリ</span></div>
+          <div class="metric-card"><span class="metric-label" data-i18n="metrics.scanned">最終確認</span><strong id="metric-scanned">—</strong><span class="metric-foot" data-i18n="metrics.scannedFoot">キャッシュ5分・手動更新可</span></div>
+        </section>
+
+        <section class="workspace" aria-label="学校のお知らせを探す">
+          <div class="workspace-heading">
+            <div>
+              <p class="eyebrow" data-i18n="workspace.eyebrow">うちの子の学校デスク</p>
+              <h2 data-i18n="workspace.title">今日確認したいお知らせ</h2>
+            </div>
+            <button class="refresh-button" id="refresh-button" type="button"><span aria-hidden="true">↻</span> <span data-i18n="actions.refresh">今すぐ更新</span></button>
+          </div>
+
+          <div class="feed-switcher" id="feed-switcher" role="tablist" aria-label="表示する情報">
+            <button class="feed-tab active" type="button" role="tab" aria-selected="true" data-feed="notices" data-i18n="feeds.notices">学校・生活</button>
+            <button class="feed-tab" type="button" role="tab" aria-selected="false" data-feed="events" data-i18n="feeds.events">イベント</button>
+          </div>
+          <div class="source-legend" aria-label="情報の発信元">
+            <span><i class="legend-swatch school"></i><span data-i18n="groups.school">学校</span></span>
+            <span><i class="legend-swatch municipality"></i><span data-i18n="groups.municipality">武蔵野市・教育委員会／市役所</span></span>
+            <span><i class="legend-swatch after-school"></i><span data-i18n="groups.afterSchool">学童</span></span>
+          </div>
+
+          <details class="filter-drawer" id="filter-drawer">
+            <summary><span class="filter-drawer-action"><span class="filter-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M5 6h14M8 12h8M10 18h4" /></svg></span><span data-i18n="filters.change">学校・学年を変更</span></span><small id="filter-context">桜野小学校 · 武蔵野市 · 1年生</small></summary>
+            <div class="filters" role="group" aria-label="お知らせの絞り込み">
+              <label class="filter-field wide"><span data-i18n="filters.school">学校</span>
+                <select id="source-filter"><option value="all" data-i18n="filters.allSchools">すべての学校</option></select>
+              </label>
+              <label class="filter-field"><span data-i18n="filters.level">学校種別</span>
+                <select id="level-filter"><option value="all" data-i18n="filters.all">すべて</option><option value="小学校" data-i18n="levels.elementary">小学校</option><option value="中学校" data-i18n="levels.middle">中学校</option><option value="高等学校" data-i18n="levels.high">高等学校</option></select>
+              </label>
+              <label class="filter-field"><span data-i18n="filters.ward">地域</span>
+                <select id="ward-filter"><option value="all" data-i18n="filters.allAreas">すべての地域</option></select>
+              </label>
+              <label class="filter-field"><span data-i18n="filters.grade">学年</span>
+                <select id="grade-filter"><option value="1年生" data-i18n="grades.one">1年生</option><option value="2年生" data-i18n="grades.two">2年生</option><option value="3年生" data-i18n="grades.three">3年生</option><option value="4年生" data-i18n="grades.four">4年生</option><option value="5年生" data-i18n="grades.five">5年生</option><option value="6年生" data-i18n="grades.six">6年生</option><option value="全学年" data-i18n="grades.all">全学年</option></select>
+              </label>
+            </div>
+          </details>
+
+          <div class="filter-summary" id="filter-summary" aria-live="polite" data-i18n="status.checking">学校のページを確認しています。</div>
+
+          <div class="content-grid">
+            <div class="feed-column">
+              <div class="loading-state" id="loading-state" hidden>
+                <span class="spinner" aria-hidden="true"></span>
+                <p data-i18n="status.loading">学校ページを確認中です…</p>
+              </div>
+              <div class="empty-state" id="empty-state" hidden>
+                <div class="empty-icon" aria-hidden="true">⌁</div>
+                <h3 data-i18n="empty.title">表示できるお知らせがありません</h3>
+                <p data-i18n="empty.body">絞り込みを変えるか、もう一度更新してください。</p>
+              </div>
+              <div class="notice-list" id="notice-list"></div>
+            </div>
+            <aside class="detail-panel" id="detail-panel" aria-label="選択したお知らせの詳細">
+              <div class="detail-placeholder">
+                <div class="placeholder-mark" aria-hidden="true">お</div>
+                <p class="eyebrow" data-i18n="detail.eyebrow">原文を優先</p>
+                <h3 data-i18n="detail.placeholderTitle">お知らせを選択すると<br>原文がここに表示されます。</h3>
+                <p data-i18n="detail.placeholderBody">要約だけでなく、分類した項目と日本語原文・公式リンクを一緒に確認できます。</p>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="research-strip" aria-labelledby="research-title">
+          <div>
+            <p class="eyebrow">このベータの理由</p>
+            <h2 id="research-title">「紙をなくした」は<br>個人だけの問題ではありませんでした。</h2>
+          </div>
+          <div class="research-points">
+            <article><span>01</span><p>港区には、転校した保護者が「紙の書類が多く、学校ごとに使うツールが違う」と伝えた公式記録があります。</p></article>
+            <article><span>02</span><p>既存サービスは学校・自治体が導入する連絡インフラが中心です。このベータは、公開ホームページを保護者の視点で横断して集めます。</p></article>
+            <article><span>03</span><p>学校ごとにPDF・HTML・CMSが異なるため、ソースごとに検証状況と取得方法を登録して拡張します。</p></article>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>おたより desk · research beta · 2026</span>
+        <span>公式の原文リンクも必ず確認してください。</span>
+      </footer>
+    </div>
+    <script src="/app.js?v=20261001-5" defer></script>
+  </body>
+</html>
