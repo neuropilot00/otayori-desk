@@ -4,6 +4,7 @@ const state = {
   payload: null,
   selectedId: null,
   loading: false,
+  reloadRequested: false,
   feed: "notices",
   nearbyDistances: new Map(),
   push: { config: null, registration: null, subscribed: false },
@@ -429,7 +430,10 @@ async function selectNotice(id, { showInline = true } = {}) {
 }
 
 async function loadNotices(refresh = false) {
-  if (state.loading) return;
+  if (state.loading) {
+    state.reloadRequested = true;
+    return;
+  }
   setLoading(true);
   try {
     const query = queryString();
@@ -446,6 +450,10 @@ async function loadNotices(refresh = false) {
     renderPlaceholder();
   } finally {
     setLoading(false);
+    if (state.reloadRequested) {
+      state.reloadRequested = false;
+      loadNotices(false);
+    }
   }
 }
 
