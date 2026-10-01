@@ -1,5 +1,5 @@
-const CACHE_NAME = "otayori-desk-shell-v5";
-const SHELL = ["/", "/app.css?v=20261001-10", "/app.js?v=20261001-10", "/manifest.webmanifest", "/icon.svg"];
+const CACHE_NAME = "otayori-desk-shell-v6";
+const SHELL = ["/", "/app.css?v=20261001-11", "/app.js?v=20261001-11", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));

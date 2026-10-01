@@ -124,7 +124,7 @@ function queryString() {
   ["source-filter", "level-filter", "ward-filter", "grade-filter", "group-filter"].forEach((id) => {
     const value = selectedValue(id);
     const key = id.replace("-filter", "");
-    if (value && value !== "all") params.set(key === "source" ? "source_id" : key === "group" ? "group" : key, value);
+    if (value && (value !== "all" || key === "source")) params.set(key === "source" ? "source_id" : key === "group" ? "group" : key, value);
   });
   params.set("feed", state.feed);
   return params.toString();
