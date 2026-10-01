@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import sqlite3
 import threading
 import time
 import unicodedata
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed, wait
-from dataclasses import dataclass
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from html import unescape
 from html.parser import HTMLParser
@@ -189,11 +191,20 @@ class CatalogCacheStore:
         except OSError:
             pass
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self):
         connection = sqlite3.connect(self.path, timeout=5.0)
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("PRAGMA busy_timeout=5000")
-        return connection
+        try:
+            connection.execute("PRAGMA journal_mode=WAL")
+            connection.execute("PRAGMA busy_timeout=5000")
+            with connection:
+                yield connection
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _source_fingerprint(source: SourceConfig) -> str:
+        return sha256_text(json.dumps(asdict(source), sort_keys=True, ensure_ascii=False))
 
     def load(self, source: SourceConfig, grade: str) -> CatalogResult | None:
         key = f"{source.id}\0{grade}"
@@ -213,6 +224,8 @@ class CatalogCacheStore:
                 return None
             if payload.get("source_id") != source.id or payload.get("grade") != grade:
                 return None
+            if payload.get("source_fingerprint") != self._source_fingerprint(source):
+                return None
             notices = tuple(self._notice_from_payload(item) for item in payload.get("notices", []))
             return CatalogResult(source, grade, str(payload["scanned_at"]), notices, tuple(str(item) for item in payload.get("warnings", [])))
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
@@ -223,6 +236,7 @@ class CatalogCacheStore:
         payload = json.dumps(
             {
                 "source_id": result.source.id,
+                "source_fingerprint": self._source_fingerprint(result.source),
                 "grade": result.grade,
                 "scanned_at": result.scanned_at,
                 "warnings": list(result.warnings),
@@ -641,6 +655,17 @@ class CatalogService:
     def cache_ttl_seconds(self) -> int:
         return int(self._cache_ttl_seconds)
 
+    def storage_ready(self) -> bool:
+        if not any(source.enabled for source in self.sources):
+            return False
+        if self._cache_store:
+            try:
+                with self._cache_store._connect() as connection:
+                    connection.execute("SELECT cache_key FROM catalog_results LIMIT 1").fetchone()
+            except (OSError, sqlite3.Error):
+                return False
+        return True
+
     def start_background_refresh(self, interval_seconds: float = 900.0) -> None:
         """Keep the public catalog warm without making parents wait for upstream PDFs."""
         interval = max(60.0, float(interval_seconds))
@@ -671,9 +696,9 @@ class CatalogService:
         while not self._refresh_stop.is_set():
             try:
                 self.get_many(source_id="all", refresh=True)
-            except Exception:
+            except Exception as exc:
                 # A single source must not stop the catalog refresh loop.
-                pass
+                logging.getLogger(__name__).warning("catalog_refresh_failed type=%s", type(exc).__name__)
             if self._refresh_stop.wait(interval_seconds):
                 return
 
@@ -681,22 +706,47 @@ class CatalogService:
         source = self._source_by_id(source_id)
         effective_grade = self._effective_grade(source, grade)
         key = (source.id, effective_grade)
-        with self._lock:
-            cached = self._cache.get(key)
-            if not refresh and cached and time.monotonic() - cached[0] < self._cache_ttl_seconds:
-                return cached[1]
-        if not refresh and self._cache_store:
-            persisted = self._cache_store.load(source, effective_grade)
-            if persisted is not None:
-                with self._lock:
-                    self._cache[key] = (time.monotonic(), persisted)
-                return persisted
-        result = self._scan_source(source, effective_grade)
+        cached = self._last_cached(source, effective_grade)
+        if not refresh and cached and time.monotonic() - cached[0] < self._cache_ttl_seconds:
+            return cached[1]
+        try:
+            result = self._scan_source(source, effective_grade)
+        except Exception:
+            if not cached:
+                raise
+            result = replace(cached[1], warnings=("最新情報を確認できませんでした。前回取得した情報を表示しています。公式ページも確認してください。",))
+            with self._lock:
+                self._cache[key] = (time.monotonic(), result)
+            return result
+        if result.warnings and cached:
+            # A failed PDF must not silently erase the last readable version.
+            fetched_urls = {notice.url for notice in result.notices}
+            retained = tuple(notice for notice in cached[1].notices if notice.url not in fetched_urls)
+            if retained:
+                result = replace(result, notices=result.notices + retained, warnings=result.warnings + ("一部は前回取得した情報です。原文で最新情報を確認してください。",))
         with self._lock:
             self._cache[key] = (time.monotonic(), result)
-        if self._cache_store:
+        if self._cache_store and not result.warnings:
             self._cache_store.save(result)
         return result
+
+    def _last_cached(self, source: SourceConfig, grade: str) -> tuple[float, CatalogResult] | None:
+        key = (source.id, grade)
+        with self._lock:
+            cached = self._cache.get(key)
+        if cached:
+            return cached
+        persisted = self._cache_store.load(source, grade) if self._cache_store else None
+        if persisted is None:
+            return None
+        try:
+            age = max(0, time.time() - datetime.fromisoformat(persisted.scanned_at).timestamp())
+        except (TypeError, ValueError):
+            age = self._cache_ttl_seconds + 1
+        cached = (time.monotonic() - age, persisted)
+        with self._lock:
+            self._cache[key] = cached
+        return cached
 
     def get_many(
         self,
@@ -729,9 +779,6 @@ class CatalogService:
             selected = [source for source in selected if source.source_group == source_group]
         if not selected:
             raise CatalogError("no enabled source matches the requested filters")
-        if len(selected) == 1:
-            return [self.get_source(selected[0].id, grade, refresh)]
-
         results: dict[str, CatalogResult] = {}
         errors: list[str] = []
         futures = {
@@ -750,6 +797,9 @@ class CatalogService:
         for future in not_done:
             source = future_sources[future]
             errors.append(f"{source.name}: source check exceeded {int(self._max_wait_seconds)} seconds")
+        for source in selected:
+            if source.id not in results:
+                results[source.id] = CatalogResult(source, self._effective_grade(source, grade), "", (), ("最新情報を確認できません。公式ページをご確認ください。",))
         # Do not cancel shared futures: another request or the background
         # refresher may be using the same scan. Completed results populate the
         # cache for the next request.
@@ -776,21 +826,13 @@ class CatalogService:
         refresh: bool,
         results: dict[str, CatalogResult],
     ) -> bool:
-        if refresh:
-            return False
         effective_grade = self._effective_grade(source, grade)
-        with self._lock:
-            cached = self._cache.get((source.id, effective_grade))
-            if cached and time.monotonic() - cached[0] < self._cache_ttl_seconds:
+        cached = self._last_cached(source, effective_grade)
+        if cached:
+            if not refresh and time.monotonic() - cached[0] < self._cache_ttl_seconds:
                 results[source.id] = cached[1]
                 return True
-        if self._cache_store:
-            persisted = self._cache_store.load(source, effective_grade)
-            if persisted is not None:
-                with self._lock:
-                    self._cache[(source.id, effective_grade)] = (time.monotonic(), persisted)
-                results[source.id] = persisted
-                return True
+            results[source.id] = replace(cached[1], warnings=cached[1].warnings + ("更新確認中です。前回取得した情報を表示しています。",))
         return False
 
     def _submit_source(self, source: SourceConfig, grade: str | None, refresh: bool) -> Future[CatalogResult]:
@@ -863,6 +905,7 @@ class CatalogService:
             max_document_bytes=self.settings.max_document_bytes,
             user_agent=self.settings.user_agent,
             max_attempts=3,
+            allowed_hosts={urlparse(url).hostname for url in source.page_urls},
         )
         warnings: list[str] = []
         candidates_by_url: dict[str, LinkCandidate] = {}

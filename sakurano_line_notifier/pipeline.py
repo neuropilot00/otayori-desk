@@ -6,6 +6,7 @@ import json
 import uuid
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 from .config import Settings
 from .extractor import (
@@ -85,6 +86,7 @@ class SchoolNotifier:
             timeout_seconds=settings.request_timeout_seconds,
             max_document_bytes=settings.max_document_bytes,
             user_agent=settings.user_agent,
+            allowed_hosts={urlparse(settings.page_url).hostname},
         )
 
     def prepare(self, dry_run: bool = False) -> PrepareResult:

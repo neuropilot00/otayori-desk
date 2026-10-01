@@ -178,15 +178,21 @@ def extract_document_text(payload: bytes, content_type: str = "", url: str = "")
         from pypdf import PdfReader
 
         reader = PdfReader(io.BytesIO(payload))
+        if reader.is_encrypted or len(reader.pages) > 50:
+            raise ExtractionError("encrypted PDFs or PDFs over 50 pages are not supported")
         pages = []
+        characters = 0
         for page in reader.pages:
             plain_text = page.extract_text() or ""
-            try:
-                layout_text = page.extract_text(extraction_mode="layout") or ""
-            except TypeError:
-                # Compatibility fallback for older pypdf releases.
-                layout_text = plain_text
-            pages.append(layout_text if _looks_fragmented(plain_text) else plain_text)
+            text = plain_text
+            if _looks_fragmented(plain_text):
+                text = page.extract_text(extraction_mode="layout") or plain_text
+            characters += len(text)
+            if characters > 200_000:
+                raise ExtractionError("PDF text exceeds safety limit")
+            pages.append(text)
+    except ExtractionError:
+        raise
     except Exception as exc:
         raise ExtractionError(f"could not extract PDF text: {url}") from exc
     text = "\n".join(pages)

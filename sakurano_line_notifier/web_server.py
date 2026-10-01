@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import logging
 import mimetypes
+import os
+import re
+import secrets
+import socket
 import threading
 import time
 from collections import deque
 from http import HTTPStatus
+from http.cookies import SimpleCookie, CookieError
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -14,13 +21,45 @@ from urllib.parse import parse_qs, unquote, urlparse
 from .web_catalog import CatalogError, CatalogService
 from .web_push import PushSubscriptionError, WebPushNotifier
 
+POLICY_VERSION = "2026-10-01"
+DEVICE_COOKIE = "otayori_device"
+LOGGER = logging.getLogger(__name__)
+
 
 class _BetaHTTPServer(ThreadingHTTPServer):
+    daemon_threads = True
+    request_queue_size = 32
+
     def __init__(self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler], catalog: CatalogService, push_notifier: WebPushNotifier | None = None) -> None:
         super().__init__(address, handler)
         self.catalog = catalog
         self.push_notifier = push_notifier
         self.rate_limiter = _RequestRateLimiter()
+        self._slots = threading.BoundedSemaphore(32)
+        self.public_origin = os.getenv("WEB_PUBLIC_ORIGIN", "").rstrip("/")
+        self.cookie_secure = self.public_origin.startswith("https://")
+
+    def process_request(self, request: socket.socket, client_address: tuple[str, int]) -> None:
+        request.settimeout(15)
+        if not self._slots.acquire(blocking=False):
+            try:
+                request.sendall(b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\nRetry-After: 5\r\n\r\n")
+            except OSError:
+                pass
+            finally:
+                self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            self._slots.release()
+            raise
+
+    def process_request_thread(self, request: socket.socket, client_address: tuple[str, int]) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._slots.release()
 
 
 class _RequestRateLimiter:
@@ -42,7 +81,9 @@ class _RequestRateLimiter:
                 return False, retry_after
             hits.append(now)
             if len(self._hits) > 2048:
-                self._hits = {item: values for item, values in self._hits.items() if values}
+                # Hard bound even under a flood of distinct client keys.
+                oldest = min(self._hits, key=lambda item: self._hits[item][-1] if self._hits[item] else 0)
+                del self._hits[oldest]
             return True, 0
 
 
@@ -51,8 +92,21 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        self.close_connection = True
         parsed = urlparse(self.path)
         try:
+            if parsed.path == "/api/pilot":
+                self._send_json({"mode": "free_beta", "payments_enabled": False, "policy_version": POLICY_VERSION, "retention_days": 180, "contact_url": None})
+                return
+            if parsed.path in {"/api/privacy/data", "/api/push/status"}:
+                owner = self._owner_hash()
+                notifier = self.server.push_notifier
+                if parsed.path == "/api/privacy/data":
+                    payload = notifier.export_owner(owner) if owner and notifier else {"subscriptions": []}
+                    self._send_json({**payload, "device_only": True, "policy_version": POLICY_VERSION})
+                else:
+                    self._send_json(notifier.owner_status(owner) if owner and notifier else {"subscribed": False, "scopes": []})
+                return
             if parsed.path == "/api/config":
                 self._send_json(self._config_payload())
                 return
@@ -67,17 +121,51 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/health":
                 self._send_json({"ok": True, "service": "school-news-beta"})
                 return
+            if parsed.path == "/api/ready":
+                ready = self.server.catalog.storage_ready()
+                self._send_json({"ok": ready, "mode": "free_beta"}, status=HTTPStatus.OK if ready else HTTPStatus.SERVICE_UNAVAILABLE)
+                return
             if parsed.path == "/api/push/config":
                 self._send_json(self.server.push_notifier.config() if self.server.push_notifier else {"enabled": False, "sending_enabled": False, "public_key": None})
                 return
             self._send_static(parsed.path)
         except CatalogError as exc:
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
-        except Exception as exc:  # Keep the local beta usable when one upstream has an unexpected response.
-            self._send_json({"error": f"unexpected server error: {exc.__class__.__name__}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+        except Exception as exc:
+            self._server_error(exc)
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        # One request per connection also prevents an unread rejected body from
+        # being interpreted as the next request (request desynchronization).
+        self.close_connection = True
         parsed = urlparse(self.path)
+        if parsed.path not in {"/api/push/subscribe", "/api/push/unsubscribe", "/api/privacy/delete", "/api/refresh"}:
+            self._send_json({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
+            return
+        if not self._same_origin():
+            self._send_json({"error": "same-origin request required"}, status=HTTPStatus.FORBIDDEN)
+            return
+        if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
+            self._send_json({"error": "application/json required"}, status=HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
+            return
+        allowed, retry_after = self.server.rate_limiter.allow("global", "mutations", 60, 60)
+        if not allowed:
+            self._send_json({"error": "please retry later"}, status=HTTPStatus.TOO_MANY_REQUESTS, retry_after=retry_after)
+            return
+        if parsed.path in {"/api/push/unsubscribe", "/api/privacy/delete"}:
+            try:
+                self._read_json_body()
+                owner = self._owner_hash()
+                if owner and self.server.push_notifier:
+                    self.server.push_notifier.delete_owner(owner)
+                if parsed.path == "/api/privacy/delete":
+                    self._cookie_header = self._device_cookie("", expire=True)
+                self._send_json({"ok": True, "device_only": True})
+            except PushSubscriptionError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            except Exception as exc:
+                self._server_error(exc)
+            return
         if parsed.path == "/api/push/subscribe":
             allowed, retry_after = self.server.rate_limiter.allow(self._client_key(), "push-subscribe", 10, 600)
             if not allowed:
@@ -90,33 +178,65 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
                 subscription = payload.get("subscription")
                 if not isinstance(subscription, dict):
                     raise PushSubscriptionError("subscription is required")
-                count = self.server.push_notifier.subscribe(subscription, payload.get("scope", {}))
-                self._send_json({"ok": True, "subscription_count": count})
+                if payload.get("consent") is not True or payload.get("consent_version") != POLICY_VERSION:
+                    raise PushSubscriptionError("current notification privacy consent is required")
+                owner = self._owner_hash()
+                token = None if owner else secrets.token_urlsafe(32)
+                owner = owner or hashlib.sha256(token.encode()).hexdigest()
+                self.server.push_notifier.subscribe(subscription, payload.get("scope", {}), owner, POLICY_VERSION)
+                if token:
+                    self._cookie_header = self._device_cookie(token)
+                self._send_json({"ok": True})
             except PushSubscriptionError as exc:
                 self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
             except Exception as exc:
-                self._send_json({"error": f"unexpected server error: {exc.__class__.__name__}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
-            return
-        if parsed.path != "/api/refresh":
-            self._send_json({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
+                self._server_error(exc)
             return
         allowed, retry_after = self.server.rate_limiter.allow(self._client_key(), "refresh", 6, 60)
         if not allowed:
             self._send_json({"error": "too many refresh requests"}, status=HTTPStatus.TOO_MANY_REQUESTS, retry_after=retry_after)
             return
         try:
+            self._read_json_body()
             self._send_json(self._notices_payload(parse_qs(parsed.query), force_refresh=True))
-        except CatalogError as exc:
+        except (CatalogError, PushSubscriptionError) as exc:
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
         except Exception as exc:
-            self._send_json({"error": f"unexpected server error: {exc.__class__.__name__}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+            self._server_error(exc)
+
+    def _same_origin(self) -> bool:
+        origin = self.headers.get("Origin", "")
+        if self.headers.get("Sec-Fetch-Site") == "cross-site":
+            return False
+        if self.server.public_origin:
+            return origin == self.server.public_origin
+        # Development only; never infer a public origin from spoofable proxy headers.
+        parsed = urlparse(origin)
+        return parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"} and parsed.netloc == self.headers.get("Host")
+
+    def _owner_hash(self) -> str | None:
+        try:
+            cookies = SimpleCookie(self.headers.get("Cookie", ""))
+            token = cookies[DEVICE_COOKIE].value if DEVICE_COOKIE in cookies else ""
+        except CookieError:
+            return None
+        return hashlib.sha256(token.encode()).hexdigest() if re.fullmatch(r"[A-Za-z0-9_-]{43}", token) else None
+
+    def _device_cookie(self, token: str, expire: bool = False) -> str:
+        return f"{DEVICE_COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={0 if expire else 180 * 86400}" + ("; Secure" if self.server.cookie_secure else "")
+
+    def _server_error(self, exc: Exception) -> None:
+        # Never log request bodies, cookie values, URLs, push keys or trace locals.
+        incident = secrets.token_hex(6)
+        LOGGER.error("request_failed reference=%s type=%s", incident, type(exc).__name__)
+        self._send_json({"error": "一時的なエラーです。しばらくしてから再度お試しください。", "reference": incident}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def _config_payload(self) -> dict[str, Any]:
         sources = self.server.catalog.source_options()
         default_source = next((source for source in sources if source["id"] == "sakurano"), sources[0] if sources else None)
         return {
             "product": "おたより desk",
-            "description": "お子さまの学校のお知らせを迷わず確認する保護者向けベータ",
+            "description": "学校・市・学童のお知らせをまとめて確認する保護者向けベータ",
             "sources": sources,
             "source_count": len(sources),
             "school_count": sum(1 for source in sources if source["source_group"] == "school"),
@@ -138,7 +258,9 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
         if grade is None and source_id not in {"all", "*"}:
             source = next((item for item in self.server.catalog.source_options() if item["id"] == source_id), None)
             grade = source["default_grade"] if source else None
-        refresh = force_refresh or self._query_value(query, "refresh") in {"1", "true", "yes"}
+        if self._query_value(query, "refresh") in {"1", "true", "yes"} and not force_refresh:
+            raise CatalogError("更新には画面の更新ボタンを使用してください。")
+        refresh = force_refresh
         results = self.server.catalog.get_many(
             source_id=source_id,
             grade=grade,
@@ -160,6 +282,8 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             "filters": {"source_id": source_id or "all", "level": level or "all", "ward": ward or "all", "grade": grade or "default", "feed": feed_group or "all", "group": source_group or "all"},
             "cache_ttl_seconds": self.server.catalog.cache_ttl_seconds,
             "refreshed": force_refresh or refresh,
+            "coverage": [{"source_id": result.source.id, "checked_at": result.scanned_at, "status": "partial" if result.warnings else "checked", "notice_count": len(result.notices)} for result in results],
+            "complete": not warnings,
         }
 
     def _notice_payload(self, notice_id: str, query: dict[str, list[str]]) -> dict[str, Any] | None:
@@ -178,11 +302,13 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
         return notice.to_detail()
 
     def _read_json_body(self) -> dict[str, Any]:
+        if self.headers.get("Transfer-Encoding") or len(self.headers.get_all("Content-Length", [])) != 1:
+            raise PushSubscriptionError("one Content-Length is required")
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError as exc:
             raise PushSubscriptionError("invalid request body") from exc
-        if length <= 0 or length > 100_000:
+        if length <= 0 or length > 16_384:
             raise PushSubscriptionError("request body is missing or too large")
         try:
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
@@ -198,6 +324,9 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
         return values[0].strip() if values and values[0].strip() else None
 
     def _client_key(self) -> str:
+        # Cookies can be invented/rotated by an unauthenticated caller. They
+        # identify owned records, but must not reset abuse throttles. Proxy/NAT
+        # clients may share this bucket; forwarded headers are not trusted.
         return str(self.client_address[0] or "unknown")
 
     def _effective_source_id(self, query: dict[str, list[str]], level: str | None, ward: str | None, source_group: str | None = None) -> str:
@@ -243,6 +372,7 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", f"{content_type}; charset=utf-8" if content_type.startswith("text/") else content_type)
             self.send_header("Content-Length", str(len(payload)))
             self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "close")
             self._send_security_headers()
             self.end_headers()
             self.wfile.write(payload)
@@ -256,6 +386,9 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "close")
+            if getattr(self, "_cookie_header", None):
+                self.send_header("Set-Cookie", self._cookie_header)
             if retry_after is not None:
                 self.send_header("Retry-After", str(retry_after))
             self._send_security_headers()
@@ -266,6 +399,10 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
 
     def _send_security_headers(self) -> None:
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)")
+        if self.server.cookie_secure:
+            self.send_header("Strict-Transport-Security", "max-age=31536000")
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
         self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
 

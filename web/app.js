@@ -8,7 +8,7 @@ const state = {
   requestController: null,
   feed: "notices",
   nearbyDistances: new Map(),
-  push: { config: null, registration: null, subscribed: false },
+  push: { config: null, registration: null, subscribed: false, ready: false, busy: false, scopes: [], scopesKnown: false, statusKey: "consentRequired" },
   language: localStorage.getItem("school-news-language") || "ja",
 };
 
@@ -23,7 +23,7 @@ const I18N = {
     "filters.change": "学校・学年を変更", "filters.school": "学校", "filters.allSchools": "すべての学校", "filters.group": "発信元", "filters.allGroups": "すべての発信元", "filters.level": "学校種別", "filters.all": "すべて", "filters.ward": "地域", "filters.allAreas": "すべての地域", "filters.grade": "学年", "filters.nearby": "近くの学校を探す", "filters.map": "地図で見る ↗",
     "levels.elementary": "小学校", "levels.middle": "中学校", "levels.high": "高等学校", "grades.one": "1年生", "grades.two": "2年生", "grades.three": "3年生", "grades.four": "4年生", "grades.five": "5年生", "grades.six": "6年生", "grades.all": "全学年",
     "status.checking": "学校のページを確認しています。", "status.loading": "学校ページを確認中です…", "empty.title": "表示できるお知らせがありません", "empty.body": "絞り込みを変えるか、もう一度更新してください。",
-    "detail.eyebrow": "原文を優先", "detail.placeholderTitle": "お知らせを選択すると<br>原文がここに表示されます。", "detail.placeholderBody": "要約だけでなく、分類した項目と日本語原文・公式リンクを一緒に確認できます。",
+    "detail.eyebrow": "原文を優先", "detail.placeholderTitle": "お知らせを選択すると、原文がここに表示されます。", "detail.placeholderBody": "要約だけでなく、分類した項目と日本語原文・公式リンクを一緒に確認できます。",
     "detail.original": "日本語の原文", "detail.openOriginal": "公式の原文を開く ↗", "detail.loading": "本文を読み込んでいます…", "detail.errorEyebrow": "詳細エラー", "detail.errorTitle": "原文を読み込めませんでした。",
     "card.original": "原文 ↗", "common.items": "件", "common.published": "掲載", "common.unknownDate": "日付未確認", "common.latest": "LATEST", "archive.past": "過去のお知らせ", "archive.none": "過去のお知らせはありません", "summary.notices": "学校・生活のお知らせ", "summary.events": "イベント", "summary.noData": "表示できる情報がありません", "summary.warning": " · 一部ソースの確認警告 ", "summary.warningSuffix": "件", "summary.all": "全", "summary.archiveSuffix": "。",
     "kind.grade": "学年だより", "kind.school": "学校だより", "kind.afterSchool": "学童クラブ", "kind.city": "市・教育委員会", "kind.related": "関連資料", "category.supplies": "持ち物・準備", "category.submission": "提出物・締切", "category.events": "行事・予定", "category.parent": "保護者への連絡", "category.school": "学校全体への連絡", "category.study": "学習予定", "notifications.unavailable": "この公開ベータでは通知設定を準備中です。", "notifications.permission": "ブラウザの通知を許可してください。", "notifications.ready": "この条件の新着を通知します。", "notifications.enabled": "通知設定済み", "notifications.error": "通知を設定できませんでした。",
@@ -34,13 +34,13 @@ const I18N = {
     "metrics.schools": "등록 학교", "metrics.schoolsFoot": "초·중·고 샘플", "metrics.notices": "이번 표시 수", "metrics.noticesFoot": "공개 원문 기준", "metrics.wards": "지원 지역", "metrics.wardsFoot": "도쿄 확장용 레지스트리", "metrics.scanned": "마지막 확인", "metrics.scannedFoot": "5분 캐시 · 수동 갱신 가능",
     "workspace.eyebrow": "우리 아이 학교 데스크", "workspace.title": "오늘 확인할 소식", "actions.refresh": "지금 갱신", "actions.notifications": "알림 받기", "feeds.notices": "학교·생활", "feeds.events": "이벤트", "groups.school": "학교", "groups.municipality": "무사시노시·교육위원회／시청", "groups.afterSchool": "학동",
     "filters.change": "학교·학년 변경", "filters.school": "학교", "filters.allSchools": "모든 학교", "filters.group": "발신처", "filters.allGroups": "모든 발신처", "filters.level": "학교 종류", "filters.all": "전체", "filters.ward": "지역", "filters.allAreas": "모든 지역", "filters.grade": "학년", "filters.nearby": "가까운 학교 찾기", "filters.map": "지도에서 보기 ↗", "levels.elementary": "초등학교", "levels.middle": "중학교", "levels.high": "고등학교", "grades.one": "1학년", "grades.two": "2학년", "grades.three": "3학년", "grades.four": "4학년", "grades.five": "5학년", "grades.six": "6학년", "grades.all": "전 학년",
-    "status.checking": "학교 페이지를 확인하고 있습니다.", "status.loading": "학교 페이지 확인 중…", "empty.title": "표시할 소식이 없습니다", "empty.body": "필터를 바꾸거나 다시 갱신해 주세요.", "detail.eyebrow": "원문 우선", "detail.placeholderTitle": "소식을 선택하면<br>원문이 여기에 표시됩니다.", "detail.placeholderBody": "요약뿐 아니라 분류된 내용과 일본어 원문·공식 링크를 함께 확인할 수 있습니다.", "detail.original": "일본어 원문", "detail.openOriginal": "공식 원문 열기 ↗", "detail.loading": "본문을 불러오는 중…", "detail.errorEyebrow": "상세 오류", "detail.errorTitle": "원문을 불러오지 못했습니다.", "card.original": "원문 ↗", "common.items": "건", "common.published": "게시", "common.unknownDate": "날짜 미확인", "common.latest": "최신", "archive.past": "지난 소식", "archive.none": "지난 소식이 없습니다", "summary.notices": "학교·생활 소식", "summary.events": "이벤트", "summary.noData": "표시할 정보가 없습니다", "summary.warning": " · 일부 자료 확인 경고 ", "summary.warningSuffix": "건", "summary.all": "전체", "summary.archiveSuffix": ".", "kind.grade": "학년 소식", "kind.school": "학교 소식", "kind.afterSchool": "학동 클럽", "kind.city": "시·교육위원회", "kind.related": "관련 자료", "category.supplies": "준비물", "category.submission": "제출물·마감", "category.events": "행사·일정", "category.parent": "보호자 안내", "category.school": "학교 전체 안내", "category.study": "학습 일정",
+    "status.checking": "학교 페이지를 확인하고 있습니다.", "status.loading": "학교 페이지 확인 중…", "empty.title": "표시할 소식이 없습니다", "empty.body": "필터를 바꾸거나 다시 갱신해 주세요.", "detail.eyebrow": "원문 우선", "detail.placeholderTitle": "소식을 선택하면 원문이 여기에 표시됩니다.", "detail.placeholderBody": "요약뿐 아니라 분류된 내용과 일본어 원문·공식 링크를 함께 확인할 수 있습니다.", "detail.original": "일본어 원문", "detail.openOriginal": "공식 원문 열기 ↗", "detail.loading": "본문을 불러오는 중…", "detail.errorEyebrow": "상세 오류", "detail.errorTitle": "원문을 불러오지 못했습니다.", "card.original": "원문 ↗", "common.items": "건", "common.published": "게시", "common.unknownDate": "날짜 미확인", "common.latest": "최신", "archive.past": "지난 소식", "archive.none": "지난 소식이 없습니다", "summary.notices": "학교·생활 소식", "summary.events": "이벤트", "summary.noData": "표시할 정보가 없습니다", "summary.warning": " · 일부 자료 확인 경고 ", "summary.warningSuffix": "건", "summary.all": "전체", "summary.archiveSuffix": ".", "kind.grade": "학년 소식", "kind.school": "학교 소식", "kind.afterSchool": "학동 클럽", "kind.city": "시·교육위원회", "kind.related": "관련 자료", "category.supplies": "준비물", "category.submission": "제출물·마감", "category.events": "행사·일정", "category.parent": "보호자 안내", "category.school": "학교 전체 안내", "category.study": "학습 일정",
   },
   en: {
-    "page.title": "Otayori desk — school updates beta", "brand.subtitle": "Tokyo school notes / beta", "status.public": "Checking public pages", "status.errorPrefix": "Could not check: ", "language.label": "Language", "theme.toggle": "Change theme", "detail.view": "View details", "hero.eyebrow": "Parent beta · public sources", "hero.title": "School updates,<br><em>all in one place</em>.", "hero.lede": "See school letters, grade updates, and event information together without searching each school page.", "hero.note": "Choose your child's school and grade to show only relevant updates.", "metrics.schools": "Registered schools", "metrics.schoolsFoot": "Elementary · middle · high", "metrics.notices": "Shown now", "metrics.noticesFoot": "Based on public originals", "metrics.wards": "Areas", "metrics.wardsFoot": "Registry ready for expansion", "metrics.scanned": "Last checked", "metrics.scannedFoot": "5-min cache · refresh anytime", "workspace.eyebrow": "My child's school desk", "workspace.title": "Updates to check today", "actions.refresh": "Refresh now", "actions.notifications": "Get notifications", "feeds.notices": "School & daily life", "feeds.events": "Events", "groups.school": "School", "groups.municipality": "Musashino City / Board of Education", "groups.afterSchool": "After-school care", "filters.change": "Change school / grade", "filters.school": "School", "filters.allSchools": "All schools", "filters.group": "Source", "filters.allGroups": "All sources", "filters.level": "School type", "filters.all": "All", "filters.ward": "Area", "filters.allAreas": "All areas", "filters.grade": "Grade", "filters.nearby": "Find nearby schools", "filters.map": "Open map ↗", "levels.elementary": "Elementary", "levels.middle": "Middle", "levels.high": "High school", "grades.one": "Grade 1", "grades.two": "Grade 2", "grades.three": "Grade 3", "grades.four": "Grade 4", "grades.five": "Grade 5", "grades.six": "Grade 6", "grades.all": "All grades", "status.checking": "Checking school pages.", "status.loading": "Checking school pages…", "empty.title": "No updates to show", "empty.body": "Change a filter or refresh again.", "detail.eyebrow": "Original first", "detail.placeholderTitle": "Select an update to see<br>the original here.", "detail.placeholderBody": "Review categorized items together with the Japanese original and official link.", "detail.original": "Japanese original", "detail.openOriginal": "Open official original ↗", "detail.loading": "Loading the original…", "detail.errorEyebrow": "Detail error", "detail.errorTitle": "Could not load the original.", "card.original": "Original ↗", "common.items": " items", "common.published": "Published", "common.unknownDate": "Date unknown", "common.latest": "LATEST", "archive.past": "Past updates", "archive.none": "No past updates", "summary.notices": "School & daily life", "summary.events": "Events", "summary.noData": "No information to show", "summary.warning": " · source warnings: ", "summary.warningSuffix": "", "summary.all": "All ", "summary.archiveSuffix": ".", "kind.grade": "Grade letter", "kind.school": "School letter", "kind.afterSchool": "After-school care", "kind.city": "City / board", "kind.related": "Related", "category.supplies": "What to bring", "category.submission": "Submissions & deadlines", "category.events": "Events & schedule", "category.parent": "For parents", "category.school": "School-wide notice", "category.study": "Study schedule",
+    "page.title": "Otayori desk — school updates beta", "brand.subtitle": "Tokyo school notes / beta", "status.public": "Checking public pages", "status.errorPrefix": "Could not check: ", "language.label": "Language", "theme.toggle": "Change theme", "detail.view": "View details", "hero.eyebrow": "Parent beta · public sources", "hero.title": "School updates,<br><em>all in one place</em>.", "hero.lede": "See school letters, grade updates, and event information together without searching each school page.", "hero.note": "Choose your child's school and grade to show only relevant updates.", "metrics.schools": "Registered schools", "metrics.schoolsFoot": "Elementary · middle · high", "metrics.notices": "Shown now", "metrics.noticesFoot": "Based on public originals", "metrics.wards": "Areas", "metrics.wardsFoot": "Registry ready for expansion", "metrics.scanned": "Last checked", "metrics.scannedFoot": "5-min cache · refresh anytime", "workspace.eyebrow": "My child's school desk", "workspace.title": "Updates to check today", "actions.refresh": "Refresh now", "actions.notifications": "Get notifications", "feeds.notices": "School & daily life", "feeds.events": "Events", "groups.school": "School", "groups.municipality": "Musashino City / Board of Education", "groups.afterSchool": "After-school care", "filters.change": "Change school / grade", "filters.school": "School", "filters.allSchools": "All schools", "filters.group": "Source", "filters.allGroups": "All sources", "filters.level": "School type", "filters.all": "All", "filters.ward": "Area", "filters.allAreas": "All areas", "filters.grade": "Grade", "filters.nearby": "Find nearby schools", "filters.map": "Open map ↗", "levels.elementary": "Elementary", "levels.middle": "Middle", "levels.high": "High school", "grades.one": "Grade 1", "grades.two": "Grade 2", "grades.three": "Grade 3", "grades.four": "Grade 4", "grades.five": "Grade 5", "grades.six": "Grade 6", "grades.all": "All grades", "status.checking": "Checking school pages.", "status.loading": "Checking school pages…", "empty.title": "No updates to show", "empty.body": "Change a filter or refresh again.", "detail.eyebrow": "Original first", "detail.placeholderTitle": "Select an update to see the original here.", "detail.placeholderBody": "Review categorized items together with the Japanese original and official link.", "detail.original": "Japanese original", "detail.openOriginal": "Open official original ↗", "detail.loading": "Loading the original…", "detail.errorEyebrow": "Detail error", "detail.errorTitle": "Could not load the original.", "card.original": "Original ↗", "common.items": " items", "common.published": "Published", "common.unknownDate": "Date unknown", "common.latest": "LATEST", "archive.past": "Past updates", "archive.none": "No past updates", "summary.notices": "School & daily life", "summary.events": "Events", "summary.noData": "No information to show", "summary.warning": " · source warnings: ", "summary.warningSuffix": "", "summary.all": "All ", "summary.archiveSuffix": ".", "kind.grade": "Grade letter", "kind.school": "School letter", "kind.afterSchool": "After-school care", "kind.city": "City / board", "kind.related": "Related", "category.supplies": "What to bring", "category.submission": "Submissions & deadlines", "category.events": "Events & schedule", "category.parent": "For parents", "category.school": "School-wide notice", "category.study": "Study schedule",
   },
   zh: {
-    "page.title": "おたより desk — 学校通知测试版", "brand.subtitle": "东京学校通知 / 测试版", "status.public": "正在检查公开页面", "status.errorPrefix": "无法确认：", "language.label": "显示语言", "theme.toggle": "切换主题", "detail.view": "查看详情", "hero.eyebrow": "家长测试版 · 公开来源", "hero.title": "学校通知，<br><em>集中在一处</em>。", "hero.lede": "无需逐个寻找学校网页，即可集中查看学校通知、年级通知和活动信息。", "hero.note": "选择孩子的学校和年级，只显示需要的信息。", "metrics.schools": "已登记学校", "metrics.schoolsFoot": "小学·初中·高中", "metrics.notices": "当前显示", "metrics.noticesFoot": "以公开原文为准", "metrics.wards": "覆盖地区", "metrics.wardsFoot": "可扩展东京地区", "metrics.scanned": "最后检查", "metrics.scannedFoot": "5分钟缓存·可手动更新", "workspace.eyebrow": "孩子的学校桌面", "workspace.title": "今天要确认的通知", "actions.refresh": "立即更新", "actions.notifications": "接收通知", "feeds.notices": "学校·日常", "feeds.events": "活动", "groups.school": "学校", "groups.municipality": "武藏野市·教育委员会／市政府", "groups.afterSchool": "课后托管", "filters.change": "更改学校·年级", "filters.school": "学校", "filters.allSchools": "所有学校", "filters.group": "来源", "filters.allGroups": "所有来源", "filters.level": "学校类型", "filters.all": "全部", "filters.ward": "地区", "filters.allAreas": "所有地区", "filters.grade": "年级", "filters.nearby": "查找附近学校", "filters.map": "在地图中查看 ↗", "levels.elementary": "小学", "levels.middle": "初中", "levels.high": "高中", "grades.one": "一年级", "grades.two": "二年级", "grades.three": "三年级", "grades.four": "四年级", "grades.five": "五年级", "grades.six": "六年级", "grades.all": "全年级", "status.checking": "正在检查学校页面。", "status.loading": "正在检查学校页面…", "empty.title": "没有可显示的通知", "empty.body": "请更改筛选条件或再次更新。", "detail.eyebrow": "优先查看原文", "detail.placeholderTitle": "选择通知后<br>将在这里显示原文。", "detail.placeholderBody": "可同时查看分类内容、日文原文和官方链接。", "detail.original": "日文原文", "detail.openOriginal": "打开官方原文 ↗", "detail.loading": "正在加载原文…", "detail.errorEyebrow": "详情错误", "detail.errorTitle": "无法加载原文。", "card.original": "原文 ↗", "common.items": "条", "common.published": "发布", "common.unknownDate": "日期未知", "common.latest": "最新", "archive.past": "过去的通知", "archive.none": "没有过去的通知", "summary.notices": "学校·日常通知", "summary.events": "活动", "summary.noData": "没有可显示的信息", "summary.warning": " · 部分来源有警告 ", "summary.warningSuffix": "条", "summary.all": "共", "summary.archiveSuffix": "。", "kind.grade": "年级通知", "kind.school": "学校通知", "kind.afterSchool": "课后托管", "kind.city": "市政府·教育委员会", "kind.related": "相关资料", "category.supplies": "携带物品·准备", "category.submission": "提交物·截止日期", "category.events": "活动·日程", "category.parent": "给家长的通知", "category.school": "全校通知", "category.study": "学习安排",
+    "page.title": "おたより desk — 学校通知测试版", "brand.subtitle": "东京学校通知 / 测试版", "status.public": "正在检查公开页面", "status.errorPrefix": "无法确认：", "language.label": "显示语言", "theme.toggle": "切换主题", "detail.view": "查看详情", "hero.eyebrow": "家长测试版 · 公开来源", "hero.title": "学校通知，<br><em>集中在一处</em>。", "hero.lede": "无需逐个寻找学校网页，即可集中查看学校通知、年级通知和活动信息。", "hero.note": "选择孩子的学校和年级，只显示需要的信息。", "metrics.schools": "已登记学校", "metrics.schoolsFoot": "小学·初中·高中", "metrics.notices": "当前显示", "metrics.noticesFoot": "以公开原文为准", "metrics.wards": "覆盖地区", "metrics.wardsFoot": "可扩展东京地区", "metrics.scanned": "最后检查", "metrics.scannedFoot": "5分钟缓存·可手动更新", "workspace.eyebrow": "孩子的学校桌面", "workspace.title": "今天要确认的通知", "actions.refresh": "立即更新", "actions.notifications": "接收通知", "feeds.notices": "学校·日常", "feeds.events": "活动", "groups.school": "学校", "groups.municipality": "武藏野市·教育委员会／市政府", "groups.afterSchool": "课后托管", "filters.change": "更改学校·年级", "filters.school": "学校", "filters.allSchools": "所有学校", "filters.group": "来源", "filters.allGroups": "所有来源", "filters.level": "学校类型", "filters.all": "全部", "filters.ward": "地区", "filters.allAreas": "所有地区", "filters.grade": "年级", "filters.nearby": "查找附近学校", "filters.map": "在地图中查看 ↗", "levels.elementary": "小学", "levels.middle": "初中", "levels.high": "高中", "grades.one": "一年级", "grades.two": "二年级", "grades.three": "三年级", "grades.four": "四年级", "grades.five": "五年级", "grades.six": "六年级", "grades.all": "全年级", "status.checking": "正在检查学校页面。", "status.loading": "正在检查学校页面…", "empty.title": "没有可显示的通知", "empty.body": "请更改筛选条件或再次更新。", "detail.eyebrow": "优先查看原文", "detail.placeholderTitle": "选择通知后将在这里显示原文。", "detail.placeholderBody": "可同时查看分类内容、日文原文和官方链接。", "detail.original": "日文原文", "detail.openOriginal": "打开官方原文 ↗", "detail.loading": "正在加载原文…", "detail.errorEyebrow": "详情错误", "detail.errorTitle": "无法加载原文。", "card.original": "原文 ↗", "common.items": "条", "common.published": "发布", "common.unknownDate": "日期未知", "common.latest": "最新", "archive.past": "过去的通知", "archive.none": "没有过去的通知", "summary.notices": "学校·日常通知", "summary.events": "活动", "summary.noData": "没有可显示的信息", "summary.warning": " · 部分来源有警告 ", "summary.warningSuffix": "条", "summary.all": "共", "summary.archiveSuffix": "。", "kind.grade": "年级通知", "kind.school": "学校通知", "kind.afterSchool": "课后托管", "kind.city": "市政府·教育委员会", "kind.related": "相关资料", "category.supplies": "携带物品·准备", "category.submission": "提交物·截止日期", "category.events": "活动·日程", "category.parent": "给家长的通知", "category.school": "全校通知", "category.study": "学习安排",
   },
 };
 
@@ -82,11 +82,12 @@ function updateFilterContext() {
   const group = groupFilter && groupFilter.value !== "all" ? localizeLabel(groupFilter.value === "after_school" ? "学童" : groupFilter.value === "municipality" ? "武蔵野市・教育委員会／市役所" : "学校") : "";
   context.textContent = `${school} · ${grade}${group ? ` · ${group}` : ""}`;
   updateMapLink();
+  updatePushScopeLabels();
 }
 
-function applyLanguage(language = state.language) {
+function applyLanguage(language = state.language, persist = true) {
   state.language = I18N[language] ? language : "ja";
-  localStorage.setItem("school-news-language", state.language);
+  if (persist) localStorage.setItem("school-news-language", state.language);
   document.documentElement.lang = state.language === "zh" ? "zh-CN" : state.language;
   document.title = t("page.title", document.title);
   document.querySelectorAll("[data-i18n]").forEach((element) => { element.textContent = t(element.dataset.i18n, element.textContent); });
@@ -101,6 +102,8 @@ function applyLanguage(language = state.language) {
   const refreshButton = $("refresh-button");
   const refreshLabel = refreshButton?.querySelector("[data-i18n='actions.refresh']");
   if (refreshLabel && !state.loading) refreshLabel.textContent = t("actions.refresh");
+  applyPilotLanguage(state.language);
+  updatePushControls();
   updateFilterContext();
 }
 
@@ -131,10 +134,7 @@ function queryString() {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, { headers: { Accept: "application/json" }, ...options });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
-  return payload;
+  return pilotApi(path, options);
 }
 
 function populateConfig(config) {
@@ -348,6 +348,8 @@ function renderNotices(payload) {
   $("metric-scanned").textContent = formatScanTime(payload.scanned_at);
   const archiveCount = Math.max(0, groups.length - 1);
   $("filter-summary").textContent = formatFilterSummary(latest, state.notices.length, payload.warnings?.length || 0, archiveCount);
+  const partial = payload.complete === false || payload.coverage?.some((source) => source.status === "partial") || Boolean(payload.warnings?.length);
+  if (partial) $("filter-summary").textContent += ` · ${pilotText("partial")}`;
   list.querySelectorAll(".notice-card").forEach((card) => {
     card.querySelector("button")?.addEventListener("click", () => selectNotice(card.dataset.noticeId));
   });
@@ -440,7 +442,7 @@ async function loadNotices(refresh = false) {
   try {
     const query = queryString();
     const path = `/api/${refresh ? "refresh" : "notices"}${query ? `?${query}` : ""}`;
-    const options = refresh ? { method: "POST", signal: controller.signal } : { signal: controller.signal };
+    const options = refresh ? { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}", signal: controller.signal } : { signal: controller.signal };
     const payload = await api(path, options);
     if (requestVersion !== state.requestVersion) return;
     renderNotices(payload);
@@ -467,6 +469,7 @@ function setupFeedTabs() {
       const nextFeed = tab.dataset.feed || "notices";
       if (nextFeed === state.feed) return;
       state.feed = nextFeed;
+      updatePushScopeLabels();
       state.selectedId = null;
       document.querySelectorAll(".feed-tab").forEach((item) => {
         const active = item.dataset.feed === state.feed;
@@ -545,61 +548,228 @@ function currentPushScope() {
 }
 
 function setNotificationStatus(key) {
-  const status = $("notification-status");
-  if (status) status.textContent = notificationText(key);
+  state.push.statusKey = key;
+  pilotStatus("notification-status", key);
+  updatePushControls();
+}
+
+function updatePushControls() {
   const button = $("notification-button");
-  if (button) button.title = notificationText(key);
+  if (button) {
+    button.title = pilotText(state.push.statusKey);
+    const label = button.querySelector("span:last-child");
+    if (label) label.textContent = state.push.subscribed ? pilotText(state.push.ready ? "enabled" : "pausedLabel") : t("actions.notifications");
+  }
+  const enable = $("notification-enable");
+  if (enable) enable.disabled = state.push.busy || !state.push.ready || !state.config || !$("notification-consent")?.checked;
+  ["notification-unsubscribe", "privacy-delete", "privacy-export"].forEach((id) => {
+    if ($(id)) $(id).disabled = state.push.busy;
+  });
+  if ($("notification-consent")) $("notification-consent").disabled = state.push.busy;
+  updatePushScopeLabels();
+}
+
+function updatePushScopeLabels() {
+  const field = $("notification-scopes");
+  if (!field || !$("source-filter")) return;
+  const scopeLabel = (scope) => {
+    const value = (key) => typeof scope?.[key] === "string" ? scope[key].slice(0, 200) : "";
+    const sourceId = value("source_id");
+    const source = state.config?.sources.find((item) => item.id === sourceId);
+    return [source?.name || (sourceId === "all" ? t("filters.allSchools") : sourceId || "—"), localizeLabel(value("grade") || "全学年"), t(value("feed") === "events" ? "feeds.events" : "feeds.notices"), value("group") === "all" ? t("filters.allGroups") : localizeLabel(({ school: "学校", municipality: "武蔵野市・教育委員会／市役所", after_school: "学童" })[value("group")] || value("group") || "—")].join(" · ");
+  };
+  const saved = state.push.scopesKnown ? (state.push.scopes.length ? state.push.scopes.map(scopeLabel).join(" / ") : pilotText("noScopes")) : pilotText("scopesUnknown");
+  field.textContent = `${pilotText("displayedScope")}: ${scopeLabel(currentPushScope())}\n${pilotText("storedScope")}: ${saved}`;
+}
+
+function openNotificationSettings() {
+  const opening = $("notification-settings").hidden;
+  $("notification-settings").hidden = !opening;
+  $("notification-button").setAttribute("aria-expanded", String(opening));
+  if (opening) $("notification-consent").focus();
+}
+
+async function appPushRegistration() {
+  if (!("serviceWorker" in navigator)) return null;
+  const registration = state.push.registration || await navigator.serviceWorker.getRegistration("/");
+  const worker = registration?.active || registration?.waiting || registration?.installing;
+  if (!worker) return null;
+  const url = new URL(worker.scriptURL, location.origin);
+  return url.origin === location.origin && url.pathname === "/sw.js" ? registration : null;
+}
+
+async function removeBrowserPush() {
+  const registration = await appPushRegistration();
+  const subscription = await registration?.pushManager?.getSubscription();
+  if (subscription && !await subscription.unsubscribe()) throw new Error("browser unsubscribe failed");
+  return registration;
 }
 
 async function enablePushNotifications() {
-  const button = $("notification-button");
-  if (!button || !state.push.config?.enabled) {
+  if (state.push.busy) return;
+  if (!state.push.ready || !state.config) {
     setNotificationStatus("unavailable");
     return;
   }
-  if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
-    setNotificationStatus("unavailable");
+  if (!$("notification-consent").checked) {
+    setNotificationStatus("consentRequired");
     return;
   }
-  button.disabled = true;
+  state.push.busy = true;
+  updatePushControls();
+  let createdSubscription = null;
   try {
-    const permission = await Notification.requestPermission();
+    const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
     if (permission !== "granted") {
       setNotificationStatus("permission");
       return;
     }
-    const registration = state.push.registration || await navigator.serviceWorker.ready;
+    await navigator.serviceWorker.register("/sw.js");
+    const registration = await navigator.serviceWorker.ready;
+    state.push.registration = registration;
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(state.push.config.public_key) });
+      createdSubscription = subscription;
     }
-    await api("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: subscription.toJSON(), scope: currentPushScope() }) });
+    await api("/api/push/subscribe", { method: "POST", body: JSON.stringify({ subscription: subscription.toJSON(), scope: currentPushScope(), consent: true, consent_version: PILOT_POLICY_VERSION }) });
     state.push.subscribed = true;
-    const label = button.querySelector("span:last-child");
-    if (label) label.textContent = notificationText("enabled");
+    try {
+      const status = await api("/api/push/status");
+      state.push.scopes = Array.isArray(status.scopes) ? status.scopes : [];
+      state.push.scopesKnown = true;
+    } catch (_) { state.push.scopes = []; state.push.scopesKnown = false; }
+    $("notification-consent").checked = false;
     setNotificationStatus("ready");
-  } catch (error) {
+  } catch (_) {
+    if (createdSubscription) {
+      try { await createdSubscription.unsubscribe(); } catch (_) { /* Report that a browser subscription may remain. */ }
+    }
     setNotificationStatus("error");
-    button.title = error.message || notificationText("error");
   } finally {
-    button.disabled = false;
+    state.push.busy = false;
+    updatePushControls();
   }
 }
 
 async function setupPushNotifications() {
-  const button = $("notification-button");
-  if (!button) return;
-  button.addEventListener("click", enablePushNotifications);
-  if (!("serviceWorker" in navigator)) {
-    setNotificationStatus("unavailable");
-    return;
-  }
+  $("notification-button").addEventListener("click", openNotificationSettings);
+  $("notification-consent").addEventListener("change", updatePushControls);
+  $("notification-enable").addEventListener("click", enablePushNotifications);
+  $("notification-unsubscribe").addEventListener("click", unsubscribePushNotifications);
+  $("privacy-export").addEventListener("click", exportDeviceData);
+  $("privacy-delete").addEventListener("click", deleteDeviceData);
+  state.push.busy = true;
+  updatePushControls();
   try {
-    state.push.registration = await navigator.serviceWorker.register("/sw.js");
-    state.push.config = await api("/api/push/config");
-    if (!state.push.config.enabled) setNotificationStatus("unavailable");
-  } catch (error) {
-    setNotificationStatus("error");
+    const supported = "serviceWorker" in navigator && "Notification" in window && "PushManager" in window;
+    const [pilot, config, status, data, registration] = await Promise.all([
+      loadPilotConfig(), api("/api/push/config"), api("/api/push/status"), api("/api/privacy/data"),
+      supported ? navigator.serviceWorker.register("/sw.js") : null,
+    ]);
+    state.push.config = config;
+    state.push.registration = registration;
+    const subscription = await registration?.pushManager.getSubscription();
+    const recordedConsent = data.subscriptions?.some((item) => item.consent_version === PILOT_POLICY_VERSION);
+    state.push.scopes = Array.isArray(status.scopes) ? status.scopes : [];
+    state.push.scopesKnown = true;
+    state.push.ready = supported && config.enabled && config.sending_enabled === true && Boolean(config.public_key) && config.consent_version === pilot.policy_version;
+    state.push.subscribed = Boolean(status.subscribed && recordedConsent && subscription && Notification.permission === "granted");
+    if (subscription && (!recordedConsent || !status.subscribed)) setNotificationStatus("reconsent");
+    else if (status.subscribed && !state.push.subscribed) setNotificationStatus("serverOnly");
+    else setNotificationStatus(config.sending_enabled !== true ? "paused" : state.push.subscribed ? "ready" : state.push.ready ? "consentRequired" : "unavailable");
+    // Never POST or silently re-subscribe on load, filter changes or language changes.
+  } catch (_) {
+    state.push.ready = false;
+    setNotificationStatus("statusError");
+  } finally {
+    state.push.busy = false;
+    updatePushControls();
+  }
+}
+
+async function unsubscribePushNotifications() {
+  if (state.push.busy) return;
+  state.push.busy = true;
+  updatePushControls();
+  let serverRemoved = false;
+  try {
+    await api("/api/push/unsubscribe", { method: "POST", body: "{}" });
+    serverRemoved = true;
+    state.push.subscribed = false;
+    state.push.scopes = []; state.push.scopesKnown = true;
+    $("notification-consent").checked = false;
+    await removeBrowserPush();
+    setNotificationStatus("off");
+  } catch (_) {
+    setNotificationStatus(serverRemoved ? "browserError" : "unsubscribeError");
+  } finally {
+    state.push.busy = false;
+    updatePushControls();
+  }
+}
+
+async function exportDeviceData() {
+  if (state.push.busy) return;
+  state.push.busy = true;
+  updatePushControls();
+  try {
+    const data = safePilotExport(await api("/api/privacy/data"), localStorage);
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url; link.download = `otayori-device-${PILOT_POLICY_VERSION}.json`;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    pilotStatus("privacy-status", "exported");
+  } catch (_) {
+    pilotStatus("privacy-status", "exportError");
+  } finally {
+    state.push.busy = false;
+    updatePushControls();
+  }
+}
+
+async function deleteDeviceData() {
+  if (state.push.busy || !window.confirm(pilotText("confirmDelete"))) return;
+  state.push.busy = true;
+  updatePushControls();
+  let serverRemoved = false;
+  try {
+    await api("/api/privacy/delete", { method: "POST", body: "{}" });
+    serverRemoved = true; // Successful server response also expires the HttpOnly cookie.
+    state.push.subscribed = false;
+    state.push.scopes = []; state.push.scopesKnown = true;
+    state.requestVersion += 1;
+    state.requestController?.abort();
+    setLoading(false);
+    const results = await Promise.allSettled([
+      (async () => { await removeBrowserPush(); const registration = await appPushRegistration(); if (registration && !await registration.unregister()) throw new Error("unregister failed"); state.push.registration = null; })(),
+      (async () => { PILOT_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key)); })(),
+      (async () => { if ("caches" in window) { const keys = await caches.keys(); await Promise.all(keys.filter((key) => key.startsWith(PILOT_CACHE_PREFIX)).map(async (key) => { if (!await caches.delete(key)) throw new Error("cache deletion failed"); })); } })(),
+    ]);
+    $("notification-consent").checked = false;
+    state.nearbyDistances = new Map();
+    renderSourceOptions("all");
+    $("grade-filter").value = "全学年";
+    $("group-filter").value = "all";
+    $("ward-filter").value = "all";
+    $("level-filter").value = "all";
+    state.selectedId = null; state.notices = []; state.payload = null;
+    $("notice-list").replaceChildren();
+    $("filter-summary").textContent = t("summary.noData");
+    $("feedback-issue").value = ""; $("feedback-template").value = "";
+    $("feedback-fallback").hidden = true;
+    $("feedback-status").textContent = ""; delete $("feedback-status").dataset.pilotStatus;
+    document.body.classList.remove("dark");
+    applyLanguage("ja", false);
+    renderPlaceholder();
+    setNotificationStatus(results[0].status === "rejected" ? "browserError" : "off");
+    pilotStatus("privacy-status", results.some((result) => result.status === "rejected") ? "deletePartial" : "deleted");
+  } catch (_) {
+    pilotStatus("privacy-status", serverRemoved ? "deletePartial" : "deleteError");
+  } finally {
+    state.push.busy = false;
+    updatePushControls();
   }
 }
 
@@ -612,6 +782,7 @@ async function boot() {
   try {
     state.config = await api("/api/config");
     populateConfig(state.config);
+    updatePushControls();
     ["source-filter", "level-filter", "ward-filter", "grade-filter", "group-filter"].forEach((id) => $(id).addEventListener("change", () => { savePreferences(); updateFilterContext(); loadNotices(false); }));
     $("refresh-button").addEventListener("click", () => loadNotices(true));
     await loadNotices(false);

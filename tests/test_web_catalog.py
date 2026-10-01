@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import base64
 import tempfile
 import threading
 import time
@@ -103,14 +104,17 @@ class SourceRegistryTests(unittest.TestCase):
             normalize_push_scope({"source_id": "unknown"}, {"sakurano"})
 
     def test_sqlite_push_store_round_trips_subscription_and_scope_state(self) -> None:
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.hazmat.primitives import serialization
+        point = ec.derive_private_key(1, ec.SECP256R1()).public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
         with tempfile.TemporaryDirectory() as directory:
             store = SQLitePushSubscriptionStore(Path(directory) / "push.sqlite3")
             subscription = {
-                "endpoint": "https://push.example.test/subscription/1",
-                "keys": {"p256dh": "public-key", "auth": "auth-key"},
+                "endpoint": "https://fcm.googleapis.com/subscription/test-only",
+                "keys": {"p256dh": base64.urlsafe_b64encode(point).decode().rstrip("="), "auth": base64.urlsafe_b64encode(b"0123456789abcdef").decode().rstrip("=")},
             }
             scope = {"source_id": "sakurano", "grade": "1年生", "feed": "notices", "group": "school"}
-            self.assertEqual(store.upsert(subscription, scope), 1)
+            store.upsert(subscription, scope, "a" * 64, "2026-10-01")
             self.assertEqual(store.subscriptions()[0]["scope"], scope)
             store.save_scope_state("scope-key", {"known_ids": ["a"], "notified_ids": ["a"], "updated_at": 1.0})
             self.assertEqual(store.scope_state("scope-key")["known_ids"], ["a"])

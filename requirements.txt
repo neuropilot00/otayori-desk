@@ -1,4 +1,7 @@
-pypdf>=5.0,<7.0
-requests>=2.31,<3.0
-pywebpush>=2.0,<3.0
-psycopg[binary]>=3.2,<4.0
+pypdf==6.16.2
+requests==2.34.2
+pywebpush==2.5.0
+psycopg[binary]==3.3.6
+# Security floor also applies to the installed build/dependency tooling.
+urllib3==2.8.0
+pip==26.2

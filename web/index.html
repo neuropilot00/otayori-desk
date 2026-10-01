@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/manifest.webmanifest">
     <title>おたより desk — 学校のお知らせベータ</title>
-    <link rel="stylesheet" href="/app.css?v=20261001-11">
+    <link rel="stylesheet" href="/app.css?v=20261001-12">
   </head>
   <body>
     <div class="app-shell">
@@ -63,11 +63,20 @@
               <h2 data-i18n="workspace.title">今日確認したいお知らせ</h2>
             </div>
             <div class="workspace-actions">
-              <button class="notification-button" id="notification-button" type="button"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg></span><span data-i18n="actions.notifications">通知を受け取る</span></button>
-              <span class="notification-status" id="notification-status" aria-live="polite"></span>
+              <button class="notification-button" id="notification-button" type="button" aria-controls="notification-settings" aria-expanded="false"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg></span><span data-i18n="actions.notifications">通知を受け取る</span></button>
               <button class="refresh-button" id="refresh-button" type="button"><span aria-hidden="true">↻</span> <span data-i18n="actions.refresh">今すぐ更新</span></button>
             </div>
           </div>
+
+          <section class="pilot-panel" id="notification-settings" aria-label="通知の同意と設定" hidden>
+            <p id="notification-scopes" class="scope-status"></p>
+            <p data-pilot-i18n="scopeNote">表示条件を変えても通知条件は変わりません。変更するには、同意して選択中の条件を保存してください。</p>
+            <p data-pilot-i18n="consentScope">選択中の学校・学年などの条件で通知します。通知先・暗号鍵・選択条件をサーバーに保存し、ランダムな端末Cookie（HttpOnly）で管理します。</p>
+            <label class="consent-label"><input id="notification-consent" type="checkbox"><span data-pilot-i18n="consent">通知用データの保存・利用に同意します（任意）。</span></label>
+            <a href="/policies.html#privacy" lang="ja" data-pilot-i18n="consentPolicy">プライバシー・利用条件を確認（日本語）</a>
+            <div class="pilot-actions"><button id="notification-enable" type="button" data-pilot-i18n="enable" disabled>同意して通知を設定</button><button id="notification-unsubscribe" type="button" data-pilot-i18n="unsubscribe">この端末の通知を解除</button></div>
+            <p class="pilot-status" id="notification-status" role="status" aria-live="polite"></p>
+          </section>
 
           <div class="feed-switcher" id="feed-switcher" role="tablist" aria-label="表示する情報">
             <button class="feed-tab active" type="button" role="tab" aria-selected="true" data-feed="notices" data-i18n="feeds.notices">学校・生活</button>
@@ -131,6 +140,23 @@
           </div>
         </section>
 
+        <details class="pilot-panel device-settings" id="device-settings">
+          <summary data-pilot-i18n="deviceSettings">この端末のデータ・通知管理</summary>
+          <p data-pilot-i18n="deviceNote">端末Cookieで識別できる登録のみが対象です。別端末やCookieを失った登録はここでは削除できません。通知を最後に登録・更新してから180日で、サーバーの登録は削除されます。閲覧だけでは延長されません。</p>
+          <div class="pilot-actions"><button id="privacy-export" type="button" data-pilot-i18n="export">データをJSONで保存</button><button id="privacy-delete" class="danger-button" type="button" data-pilot-i18n="delete">この端末のデータを削除</button></div>
+          <p class="pilot-status" id="privacy-status" role="status" aria-live="polite"></p>
+        </details>
+
+        <details class="pilot-panel feedback-panel" id="feedback">
+          <summary data-pilot-i18n="feedback">不具合・ご意見</summary>
+          <p data-pilot-i18n="feedbackNote">コピーした内容を、このベータに招待してくれた方へお送りください。この画面から送信・保存はしません。お子さまの名前や非公開のお知らせは書かないでください。</p>
+          <label for="feedback-issue" data-pilot-i18n="issue">困ったこと・ご意見</label>
+          <textarea id="feedback-issue" rows="3" maxlength="2000"></textarea>
+          <div class="pilot-actions"><button id="feedback-copy" type="button" data-pilot-i18n="copy">共有用テンプレートをコピー</button></div>
+          <div id="feedback-fallback" hidden><label for="feedback-template" data-pilot-i18n="manualCopy">下の内容を選択してコピーしてください。</label><textarea id="feedback-template" rows="7" readonly></textarea><button id="feedback-select" type="button" data-pilot-i18n="select">内容を選択</button></div>
+          <p class="pilot-status" id="feedback-status" role="status" aria-live="polite"></p>
+        </details>
+
         <section class="research-strip" aria-labelledby="research-title">
           <div>
             <p class="eyebrow">このベータの理由</p>
@@ -145,10 +171,11 @@
       </main>
 
       <footer class="footer">
-        <span>おたより desk · research beta · 2026</span>
-        <span>公式の原文リンクも必ず確認してください。</span>
+        <span id="pilot-mode">無料ベータ · 課金なし（設定確認中）</span>
+        <nav class="policy-links" aria-label="ポリシー（日本語）"><a href="/policies.html#privacy" lang="ja">プライバシー</a><a href="/policies.html#terms" lang="ja">利用条件</a><a href="/policies.html#sources" lang="ja">情報源の方針</a><a href="#feedback" data-pilot-i18n="feedback">不具合・ご意見</a><span data-pilot-i18n="policiesJapanese">ポリシーは日本語</span></nav>
       </footer>
     </div>
-    <script src="/app.js?v=20261001-11" defer></script>
+    <script src="/policies.js?v=20261001-12" defer></script>
+    <script src="/app.js?v=20261001-12" defer></script>
   </body>
 </html>

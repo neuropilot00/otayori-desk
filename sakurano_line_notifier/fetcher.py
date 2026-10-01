@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import random
+import ipaddress
 import re
+import socket
 import time
 import unicodedata
 from dataclasses import dataclass
@@ -112,23 +114,55 @@ class HttpFetcher:
         user_agent: str = "sakurano-line-notifier/1.0",
         session: requests.Session | None = None,
         max_attempts: int = 4,
+        allowed_hosts: set[str] | None = None,
     ) -> None:
         self.timeout_seconds = timeout_seconds
         self.max_document_bytes = max_document_bytes
         self.session = session or requests.Session()
+        if session is None:
+            self.session.trust_env = False
         self.session.headers.update({"User-Agent": user_agent, "Accept-Language": "ja,en;q=0.8"})
         self.max_attempts = max_attempts
+        self.allowed_hosts = {str(host).lower() for host in allowed_hosts} if allowed_hosts else None
+
+    def _validate_url(self, url: str) -> None:
+        try:
+            parsed = urlparse(url)
+            if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or parsed.port not in {None, 80, 443}:
+                raise ValueError("invalid URL")
+            host = parsed.hostname.lower()
+            if self.allowed_hosts is not None and host not in self.allowed_hosts:
+                raise ValueError("host is not in the reviewed source registry")
+            addresses = socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)
+            if not addresses or any(not ipaddress.ip_address(item[4][0]).is_global for item in addresses):
+                raise ValueError("non-public network address")
+        except (ValueError, OSError) as exc:
+            raise FetchError("source URL is not an allowed public address") from exc
 
     def _request(self, url: str, headers: dict[str, str] | None = None, stream: bool = False) -> requests.Response:
         request_headers = dict(headers or {})
         for attempt in range(self.max_attempts):
             try:
-                response = self.session.get(
-                    url,
-                    headers=request_headers,
-                    timeout=(5, self.timeout_seconds),
-                    stream=stream,
-                )
+                current_url = url
+                for redirect in range(6):
+                    self._validate_url(current_url)
+                    response = self.session.get(
+                        current_url,
+                        headers=request_headers,
+                        timeout=(5, self.timeout_seconds),
+                        stream=True,
+                        allow_redirects=False,
+                    )
+                    if response.status_code not in {301, 302, 303, 307, 308}:
+                        break
+                    location = response.headers.get("Location")
+                    response.close()
+                    if not location or redirect == 5:
+                        raise FetchError("invalid or excessive source redirects")
+                    destination = urljoin(current_url, location)
+                    if current_url.startswith("https://") and not destination.startswith("https://"):
+                        raise FetchError("HTTPS downgrade is not allowed")
+                    current_url = destination
             except requests.RequestException as exc:
                 if attempt == self.max_attempts - 1:
                     raise FetchError(f"request failed for {url}: {exc.__class__.__name__}") from exc
@@ -142,6 +176,25 @@ class HttpFetcher:
                 raise FetchError(f"source returned HTTP {response.status_code}: {url}")
             self._backoff(attempt, response.headers.get("Retry-After"))
         raise FetchError(f"request failed for {url}")
+
+    def _bounded_payload(self, response: requests.Response, limit: int) -> bytes:
+        chunks: list[bytes] = []
+        total = 0
+        deadline = time.monotonic() + self.timeout_seconds
+        try:
+            length = response.headers.get("Content-Length")
+            if length and length.isdecimal() and int(length) > limit:
+                raise FetchError("source response exceeds size limit")
+            for chunk in response.iter_content(chunk_size=65_536):
+                total += len(chunk)
+                if total > limit or time.monotonic() > deadline:
+                    raise FetchError("source response exceeds size or time limit")
+                chunks.append(chunk)
+            return b"".join(chunks)
+        except requests.RequestException as exc:
+            raise FetchError("source response could not be read") from exc
+        finally:
+            response.close()
 
     @staticmethod
     def _backoff(attempt: int, retry_after: str | None = None) -> None:
@@ -158,7 +211,8 @@ class HttpFetcher:
         try:
             if response.status_code < 200 or response.status_code >= 300:
                 raise FetchError(f"source page returned HTTP {response.status_code}: {url}")
-            payload = response.content
+            payload = self._bounded_payload(response, min(self.max_document_bytes, 2_000_000))
+            response._content = payload
             content_type = response.headers.get("Content-Type", "").lower()
             # Some Japanese school CMSs omit charset and requests falls back to
             # ISO-8859-1 even when the HTML declares UTF-8 in a meta tag.
@@ -183,24 +237,5 @@ class HttpFetcher:
         content_type = response.headers.get("Content-Type", "")
         etag = response.headers.get("ETag")
         last_modified = response.headers.get("Last-Modified")
-        content_length = response.headers.get("Content-Length")
-        if content_length:
-            try:
-                if int(content_length) > self.max_document_bytes:
-                    raise FetchError(f"document exceeds {self.max_document_bytes} bytes: {url}")
-            except ValueError:
-                pass
-
-        chunks: list[bytes] = []
-        total = 0
-        try:
-            for chunk in response.iter_content(chunk_size=65_536):
-                if not chunk:
-                    continue
-                total += len(chunk)
-                if total > self.max_document_bytes:
-                    raise FetchError(f"document exceeds {self.max_document_bytes} bytes: {url}")
-                chunks.append(chunk)
-        finally:
-            response.close()
-        return FetchedDocument(url, b"".join(chunks), content_type, etag, last_modified)
+        payload = self._bounded_payload(response, self.max_document_bytes)
+        return FetchedDocument(url, payload, content_type, etag, last_modified)

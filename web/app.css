@@ -181,3 +181,56 @@ body.dark { --bg: #101722; --surface: #182332; --surface-soft: #202d3e; --ink: #
 }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; transition-duration: .001ms !important; } }
+
+/* The parent pilot opens with notices; optional settings stay compact. */
+.hero { display: none; }
+.workspace { margin-top: 20px; }
+.workspace-heading { flex-wrap: wrap; align-items: center; }
+.workspace-actions { flex-wrap: wrap; }
+.notification-button, .notification-button > span:last-child,
+.refresh-button, .refresh-button > span:last-child,
+.feed-tab, .language-control select, .filter-drawer > summary,
+.filter-field select, .nearby-button, .map-link { font-size: 14px; }
+.notification-button, .refresh-button, .nearby-button, .map-link { min-height: 36px; }
+.filter-drawer > summary small { font-size: 13px; }
+.filter-drawer-action { flex: 0 0 auto; white-space: nowrap; }
+.filter-drawer > summary small { flex: 1 1 0; min-width: 0; margin-left: 0; text-overflow: ellipsis; }
+.filter-drawer > summary::after { flex: 0 0 auto; }
+.pilot-panel { margin: 10px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-size: 14px; }
+.pilot-panel[hidden], [hidden] { display: none !important; }
+.pilot-panel p { margin: 8px 0; }
+.pilot-panel > summary { cursor: pointer; color: var(--blue-deep); font-weight: 650; }
+.pilot-panel a, .policy-content a, .policy-links a, .policy-page .topbar > a:last-child { color: var(--blue-deep); text-underline-offset: 3px; }
+.consent-label { display: flex; align-items: flex-start; gap: 9px; margin: 10px 0 6px; }
+.consent-label input { width: 18px; height: 18px; margin: 2px 0 0; flex: 0 0 auto; accent-color: var(--blue); }
+.pilot-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.pilot-panel button { padding: 7px 10px; min-height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); color: var(--blue-deep); font: inherit; cursor: pointer; }
+.pilot-panel button:disabled { opacity: .6; cursor: default; }
+.pilot-panel .danger-button { color: #ae3c30; }
+.dark .pilot-panel .danger-button { color: #ffb0a6; }
+.pilot-status { color: var(--muted); overflow-wrap: anywhere; }
+.pilot-status:empty { display: none; }
+.scope-status { white-space: pre-line; overflow-wrap: anywhere; }
+.device-settings, .feedback-panel { order: 2; }
+.feedback-panel textarea { display: block; width: 100%; margin: 6px 0; padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); color: var(--ink); font: inherit; resize: vertical; }
+.footer { flex-wrap: wrap; padding-top: 20px; gap: 10px; color: var(--muted); font-size: 13px; }
+.policy-links { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.policy-links a { font-size: 14px; }
+.policy-links > span { font-size: 12px; }
+.policy-content { display: block; max-width: 760px; margin: 20px auto 0; font-size: 14px; }
+.policy-content h1 { font-size: 23px; line-height: 1.4; }
+.policy-content h1 small { font-size: 13px; color: var(--muted); }
+.policy-section { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); scroll-margin-top: 14px; }
+.policy-section h2 { margin: 0 0 8px; font-size: 18px; }
+.policy-section p { margin: 8px 0; }
+.policy-section ul { padding-left: 21px; }
+.policy-section li { margin-bottom: 7px; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+@media (max-width: 680px) {
+  .workspace-heading { gap: 10px; }
+  .workspace-actions { justify-content: flex-start; }
+  .workspace-heading h2 { white-space: normal; }
+  .pilot-panel { padding: 10px 12px; }
+  .policy-page .topbar { gap: 12px; }
+  .policy-page .topbar > a:last-child { font-size: 14px; }
+}
