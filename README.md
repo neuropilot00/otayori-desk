@@ -260,7 +260,7 @@ python -m sakurano_line_notifier deliver
 
 전송이 완료되면 pending 메시지는 제거되고 해시와 전송 이력만 남습니다. 링크가 페이지에서 사라져도 과거 상태를 자동 삭제하지 않으므로, 문서가 다시 올라올 때 중복을 줄일 수 있습니다.
 
-이미지 스캔 PDF는 서버 내부의 Poppler·Tesseract 일본어 OCR로 읽습니다. Railway 빌드는 `nixpacks.toml`에서 `poppler-utils`, `tesseract-ocr`, `tesseract-ocr-jpn`을 설치·확인합니다. 외부 번역/OCR 서비스로 문서를 전송하지 않습니다. OCR은 페이지·이미지·CPU·시간 제한과 품질 검사를 적용하며, 지원 한계나 낮은 인식 품질은 실패로 남깁니다. OCR도 오독할 수 있으므로 날짜·준비물·금액은 원문 링크를 확인해야 합니다. 로컬 환경에서 일본어 언어팩이 없으면 경고가 표시되며 성공으로 가장하지 않습니다.
+이미지 스캔 PDF는 서버 내부의 Poppler·Tesseract 일본어 OCR로 읽습니다. Railway의 실제 빌더인 Railpack에 맞춰 `railpack.json`의 `deploy.aptPackages`로 `poppler-utils`, `tesseract-ocr`, `tesseract-ocr-jpn`을 런타임에 설치합니다([공식 설정](https://railpack.com/guides/installing-packages/)). 배포 후 `tesseract --list-langs`에 `jpn`이 있는지와 실제 PDF 수집을 확인합니다. 외부 번역/OCR 서비스로 문서를 전송하지 않습니다. OCR은 페이지·이미지·CPU·시간 제한과 품질 검사를 적용하며, 지원 한계나 낮은 인식 품질은 실패로 남깁니다. OCR도 오독할 수 있으므로 날짜·준비물·금액은 원문 링크를 확인해야 합니다. 로컬 환경에서 일본어 언어팩이 없으면 경고가 표시되며 성공으로 가장하지 않습니다.
 
 ## 테스트
 
