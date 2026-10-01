@@ -19,6 +19,7 @@ class CollectionCoverageTests(unittest.TestCase):
     def setUp(self):
         self.source = _parse_source({"id": "school", "name": "学校", "ward": "武蔵野市", "level": "小学校", "page_url": "https://school.example/", "mode": "mixed"}, 0)
         self.service = object.__new__(CatalogService)
+        self.service._scheduled_collection = False
         self.service.settings = SimpleNamespace(request_timeout_seconds=1, max_document_bytes=100000, user_agent="test")
 
     def test_html_event_date_is_not_publication_date(self):

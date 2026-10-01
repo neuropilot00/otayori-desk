@@ -86,7 +86,19 @@ railway domain
 
 도쿄 23구 전체를 한 번에 다 긁는 것으로 가장하지 않았습니다. 학교마다 CMS와 링크 형식이 달라, 실제 페이지·링크를 확인한 학교만 베타에 넣고 `sources.json`에 소스별 수집 방식을 명시합니다. 현재는 지인이 많은 무사시노시를 우선해 시립 초등학교 12곳과 학동 12개 학구를 등록했습니다. 새 학교를 추가할 때는 `id`, `name`, `ward`, `level`, `page_url` 또는 여러 페이지를 묶는 `page_urls`, `mode`를 넣고, 필요하면 `include_patterns`와 `exclude_patterns`를 조정합니다. HTML 뉴스형 학교는 `mode: "html_news"`를 사용합니다. 한 학교의 학교 홈페이지·学年だより·행사 페이지가 서로 분리되어 있다면 `page_urls`에 함께 넣어 같은 학교 피드로 합칩니다. 장기적으로는 동일한 스키마를 자치체 단위의 전국 소스 등록·검증 파이프라인으로 확장합니다.
 
-웹 베타는 5분 메모리 캐시와 영속 SQLite 공개자료 캐시(`WEB_CATALOG_CACHE_PATH`)를 함께 사용합니다. Railway에서는 `/data/catalog_cache.sqlite3`를 지정해 재배포 뒤에도 마지막으로 확인한 공개 공지를 먼저 보여주고, 서버는 `WEB_CATALOG_REFRESH_INTERVAL_SECONDS`(기본 15분)마다 실제 페이지를 백그라운드에서 갱신합니다. `今すぐ更新`은 캐시를 기다리지 않고 실제 공개 페이지를 다시 확인하며, 여러 학교를 한 번에 조회할 때는 `WEB_CATALOG_MAX_WAIT_SECONDS`(기본 12초) 안에 완료된 소스부터 부분 응답하고 늦은 소스는 공유 수집 작업으로 계속 캐시에 반영합니다. 요청마다 같은 PDF 수집 작업을 중복 생성하지 않으며, 부모 화면이 한 학교의 느린 PDF 때문에 멈추지 않게 하는 운영 경계입니다. 소스별 좌표는 지도/앱 전환용 메타데이터이며 위치 권한 없이는 읽지 않습니다.
+웹 베타는 5분 메모리 캐시와 영속 SQLite 공개자료 캐시(`WEB_CATALOG_CACHE_PATH`)를 함께 사용합니다. Railway에서는 `/data/catalog_cache.sqlite3`를 지정해 재배포 뒤에도 마지막으로 확인한 공개 공지를 먼저 보여줍니다. `collection_driver: server` 자료는 서버가 `WEB_CATALOG_REFRESH_INTERVAL_SECONDS`(기본 15분)마다 확인하며 `今すぐ更新`으로 다시 조회할 수 있습니다. `scheduled` 시청 자료는 아래 Actions 수집기가 약 30분마다 갱신하고, 버튼은 마지막 수집 결과를 읽습니다. 여러 학교 조회는 `WEB_CATALOG_MAX_WAIT_SECONDS`(기본 12초) 안에 완료된 소스부터 부분 응답하며 늦은 소스는 공유 작업으로 캐시에 반영합니다. 같은 PDF 수집을 요청마다 중복 실행하지 않습니다.
+
+### 시청 공개자료 정기 동기화
+
+Railway 실행 환경에서는 무사시노시 공식 도메인이 HTTP 403을 반환하지만 GitHub-hosted runner에서는 공개 페이지가 정상 응답하는 것을 확인했습니다. 인증 우회 없이, 접근 가능한 수집 환경에서 공개 자료만 읽어 웹 서버에 전달합니다.
+
+- `.github/workflows/catalog-sync.yml`: 매시 7분·37분(UTC), 수동 실행 지원. Actions 사정으로 지연될 수 있으며 정확히 30분 간격을 보장하지 않습니다.
+- GitHub Secrets: `CATALOG_SYNC_URL` = `https://otayori-web-production.up.railway.app/api/internal/catalog`, `CATALOG_SYNC_TOKEN` = 무작위 32자 이상 비밀키.
+- Railway: 동일한 `CATALOG_SYNC_TOKEN`, `WEB_SCHEDULED_COLLECTION=true`, 영속 `WEB_CATALOG_CACHE_PATH` 설정. 비밀키는 클라이언트 코드·로그·저장소에 넣지 않습니다.
+- 레지스트리에서 `collection_driver: scheduled`인 15개 시청 소스만 전송합니다. 출처 설정 지문·허용 HTTPS 호스트·학년·개수·최대 2MB·본문 읽기 성공·최근 확인 시각을 검사합니다. 실패한 소스는 업로드하지 않고 다른 정상 소스는 계속 처리합니다.
+- 수신 API는 서버 간 Bearer 인증이 필수이고 브라우저 Origin 요청은 거부합니다. 확인 시각이 같거나 이전인 재전송은 덮어쓰지 않습니다. 디스크 저장을 확인한 뒤에만 성공 응답합니다.
+- 마지막 확인 후 90분 이상이면 지연 경고와 실제 확인 시각을 유지합니다. 최초 자료가 없으면 ‘자료 대기’ 경고를 표시합니다. 과거 캐시를 방금 수집한 정보처럼 표시하지 않습니다.
+- 수집 토큰은 공개 공지 캐시 쓰기에만 사용하며 학부모 쿠키·알림 구독 DB를 읽거나 수정하지 않습니다. 키 교체 시 양쪽 Secrets를 함께 교체하고 Railway를 재배포합니다.
 
 ### 브라우저 알림과 앱 전환
 

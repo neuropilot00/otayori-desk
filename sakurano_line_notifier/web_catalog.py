@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import sqlite3
 import threading
@@ -77,10 +78,12 @@ class SourceConfig:
     coverage_kind: str = "notices"
     coverage_note: str = "登録した公開ページの直近の資料が対象です。非公開の連絡帳は含みません。"
     shared_with_ward: bool = False
+    collection_driver: str = "server"
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
+            "collection_driver": self.collection_driver,
             "name": self.name,
             "ward": self.ward,
             "level": self.level,
@@ -187,12 +190,15 @@ class CatalogResult:
             "status": ("partial" if self.notices else "unavailable") if self.warnings else (
                 "reference" if self.source.coverage_kind == "reference" else "checked"),
             "coverage_kind": self.source.coverage_kind,
-            "coverage_note": self.source.coverage_note,
+            "coverage_note": self.source.coverage_note + (
+                " 約30分ごとに定期収集します。更新ボタンでは最新の保存データを確認します。"
+                if self.source.collection_driver == "scheduled" else ""),
             "notice_count": len(self.notices),
             "readable_count": sum(notice.extraction_status == "ok" for notice in self.notices),
             "discovered_count": self.discovered_count,
             "limit_reached": self.limit_reached,
             "refreshing": self.refreshing,
+            "collection_driver": self.source.collection_driver,
         }
 
     def to_dict(self) -> dict[str, Any]:
@@ -548,6 +554,9 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
     coverage_kind = str(raw.get("coverage_kind", "reference" if mode == "static" else "notices"))
     if coverage_kind not in {"reference", "notices"}:
         raise CatalogError("coverage_kind must be reference or notices")
+    collection_driver = str(raw.get("collection_driver", "server"))
+    if collection_driver not in {"server", "scheduled"}:
+        raise CatalogError("collection_driver must be server or scheduled")
     return SourceConfig(
         id=str(raw["id"]).strip(),
         name=str(raw["name"]).strip(),
@@ -578,6 +587,7 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
         coverage_kind=coverage_kind,
         coverage_note=str(raw.get("coverage_note", SourceConfig.coverage_note)),
         shared_with_ward=bool(raw.get("shared_with_ward", False)),
+        collection_driver=collection_driver,
     )
 
 
@@ -746,6 +756,7 @@ class CatalogService:
         self._cache_ttl_seconds = max(30.0, float(getattr(settings, "web_cache_ttl_seconds", 300.0)))
         self._max_wait_seconds = min(60.0, max(1.0, float(getattr(settings, "web_catalog_max_wait_seconds", 12.0))))
         self._lock = threading.RLock()
+        self._scheduled_collection = os.getenv("WEB_SCHEDULED_COLLECTION", "").lower() == "true"
         cache_path = getattr(settings, "web_catalog_cache_path", None)
         self._cache_store = CatalogCacheStore(cache_path) if cache_path else None
         self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="catalog-scan")
@@ -812,6 +823,14 @@ class CatalogService:
         effective_grade = self._effective_grade(source, grade)
         key = (source.id, effective_grade)
         cached = self._last_cached(source, effective_grade)
+        if self._scheduled_collection and source.collection_driver == "scheduled":
+            if not cached:
+                return CatalogResult(source, effective_grade, "", (), ("定期収集の初回データを待っています。公式ページをご確認ください。",))
+            result = cached[1]
+            age = (datetime.now(timezone.utc) - datetime.fromisoformat(result.scanned_at)).total_seconds()
+            if age > 5400:
+                return replace(result, warnings=("定期収集が遅れています。前回確認した情報です。公式ページもご確認ください。",))
+            return result
         if not refresh and cached and time.monotonic() - cached[0] < self._cache_ttl_seconds:
             return cached[1]
         try:
@@ -922,6 +941,10 @@ class CatalogService:
         refresh: bool,
         results: dict[str, CatalogResult],
     ) -> bool:
+        if self._scheduled_collection and source.collection_driver == "scheduled":
+            # Use the real check time, not the import time or five-minute TTL.
+            results[source.id] = self.get_source(source.id, grade, refresh)
+            return True
         effective_grade = self._effective_grade(source, grade)
         cached = self._last_cached(source, effective_grade)
         if cached:

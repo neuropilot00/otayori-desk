@@ -26,7 +26,9 @@ def main() -> int:
         parser.error("no matching enabled sources")
     rows = []
     with ThreadPoolExecutor(max_workers=4) as pool:
-        futures = {pool.submit(service.get_source, source.id, source.default_grade, True): source for source in sources}
+        # This command audits direct upstream reachability from its own host,
+        # even when the web deployment consumes scheduled snapshots.
+        futures = {pool.submit(service._scan_source, source, source.default_grade): source for source in sources}
         for future in as_completed(futures):
             source = futures[future]
             try:

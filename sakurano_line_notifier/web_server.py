@@ -19,6 +19,7 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .web_catalog import CatalogError, CatalogService
+from .catalog_sync import MAX_SNAPSHOT_BYTES, accept_snapshot
 from .web_push import PushSubscriptionError, WebPushNotifier
 
 POLICY_VERSION = "2026-10-01"
@@ -37,6 +38,7 @@ class _BetaHTTPServer(ThreadingHTTPServer):
         self.rate_limiter = _RequestRateLimiter()
         self._slots = threading.BoundedSemaphore(32)
         self.public_origin = os.getenv("WEB_PUBLIC_ORIGIN", "").rstrip("/")
+        self.catalog_sync_token = os.getenv("CATALOG_SYNC_TOKEN", "")
         self.cookie_secure = self.public_origin.startswith("https://")
 
     def process_request(self, request: socket.socket, client_address: tuple[str, int]) -> None:
@@ -139,6 +141,9 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
         # being interpreted as the next request (request desynchronization).
         self.close_connection = True
         parsed = urlparse(self.path)
+        if parsed.path == "/api/internal/catalog":
+            self._receive_catalog_snapshot()
+            return
         if parsed.path not in {"/api/push/subscribe", "/api/push/unsubscribe", "/api/privacy/delete", "/api/refresh"}:
             self._send_json({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
             return
@@ -199,6 +204,31 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
         try:
             self._read_json_body()
             self._send_json(self._notices_payload(parse_qs(parsed.query), force_refresh=True))
+        except (CatalogError, PushSubscriptionError) as exc:
+            self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+        except Exception as exc:
+            self._server_error(exc)
+
+    def _receive_catalog_snapshot(self) -> None:
+        token = self.server.catalog_sync_token
+        if len(token) < 32:
+            self._send_json({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
+            return
+        authorization = self.headers.get("Authorization", "")
+        if self.headers.get("Origin") or not secrets.compare_digest(authorization.encode(), f"Bearer {token}".encode()):
+            self._send_json({"error": "authentication required"}, status=HTTPStatus.UNAUTHORIZED)
+            return
+        allowed, retry_after = self.server.rate_limiter.allow("global", "catalog-sync", 60, 60)
+        if not allowed:
+            self._send_json({"error": "please retry later"}, status=HTTPStatus.TOO_MANY_REQUESTS, retry_after=retry_after)
+            return
+        if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
+            self._send_json({"error": "application/json required"}, status=HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
+            return
+        try:
+            payload = self._read_json_body(max_bytes=MAX_SNAPSHOT_BYTES)
+            imported = accept_snapshot(self.server.catalog, payload)
+            self._send_json({"ok": True, "imported": imported})
         except (CatalogError, PushSubscriptionError) as exc:
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
         except Exception as exc:
@@ -306,14 +336,14 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             return None
         return notice.to_detail()
 
-    def _read_json_body(self) -> dict[str, Any]:
+    def _read_json_body(self, max_bytes: int = 16_384) -> dict[str, Any]:
         if self.headers.get("Transfer-Encoding") or len(self.headers.get_all("Content-Length", [])) != 1:
             raise PushSubscriptionError("one Content-Length is required")
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError as exc:
             raise PushSubscriptionError("invalid request body") from exc
-        if length <= 0 or length > 16_384:
+        if length <= 0 or length > max_bytes:
             raise PushSubscriptionError("request body is missing or too large")
         try:
             payload = json.loads(self.rfile.read(length).decode("utf-8"))

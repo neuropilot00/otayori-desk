@@ -49,6 +49,7 @@
     },
     {
       "id": "sakurano_gakudo",
+      "collection_driver": "scheduled",
       "name": "桜野こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -71,6 +72,7 @@
     },
     {
       "id": "musashino_dai1_gakudo",
+      "collection_driver": "scheduled",
       "name": "一小こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -93,6 +95,7 @@
     },
     {
       "id": "musashino_oonoden_gakudo",
+      "collection_driver": "scheduled",
       "name": "大野田こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -115,6 +118,7 @@
     },
     {
       "id": "musashino_kyounan_gakudo",
+      "collection_driver": "scheduled",
       "name": "境南こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -137,6 +141,7 @@
     },
     {
       "id": "musashino_sekimaeminami_gakudo",
+      "collection_driver": "scheduled",
       "name": "関前南こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -207,6 +212,7 @@
     },
     {
       "id": "musashino_education_notices",
+      "collection_driver": "scheduled",
       "name": "武蔵野市教育委員会・入学と就学支援",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -231,6 +237,7 @@
     },
     {
       "id": "musashino_sakurazutsumi_events",
+      "collection_driver": "scheduled",
       "name": "武蔵野市・桜堤児童館の行事",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -252,6 +259,7 @@
     },
     {
       "id": "musashino_gakudo_notices",
+      "collection_driver": "scheduled",
       "name": "武蔵野市・学童クラブの入会とお知らせ",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -482,6 +490,7 @@
     },
     {
       "id": "musashino_dai2_gakudo",
+      "collection_driver": "scheduled",
       "name": "二小こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -504,6 +513,7 @@
     },
     {
       "id": "musashino_dai3_gakudo",
+      "collection_driver": "scheduled",
       "name": "三小こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -526,6 +536,7 @@
     },
     {
       "id": "musashino_dai4_gakudo",
+      "collection_driver": "scheduled",
       "name": "四小こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -548,6 +559,7 @@
     },
     {
       "id": "musashino_dai5_gakudo",
+      "collection_driver": "scheduled",
       "name": "五小こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -570,6 +582,7 @@
     },
     {
       "id": "musashino_honjuku_gakudo",
+      "collection_driver": "scheduled",
       "name": "本宿こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -592,6 +605,7 @@
     },
     {
       "id": "musashino_senkawa_gakudo",
+      "collection_driver": "scheduled",
       "name": "千川こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
@@ -614,6 +628,7 @@
     },
     {
       "id": "musashino_inokashira_gakudo",
+      "collection_driver": "scheduled",
       "name": "井之頭こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",

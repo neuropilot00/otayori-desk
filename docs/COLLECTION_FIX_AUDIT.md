@@ -33,7 +33,7 @@ Local 390px browser: October grade notice and October 1 city/club notices visibl
 
 ## Remaining boundaries
 
-- Six current scanned originals still require human reading. OCR/text extraction and heuristic categorization are not a correctness guarantee.
+- Five scanned originals require human reading in the Linux audit (six in the local macOS audit). OCR/text extraction and heuristic categorization are not a correctness guarantee.
 - Some PDF headers are images even when body text is extractable, so their publication dates remain unknown.
 - Municipal event lists include several age groups; original eligibility conditions must be checked. Private 学童 newsletters/保護者連絡帳 are not covered.
 - Public site redesigns and differently named event links can require a reviewed adapter/pattern update. Scheduled checks detect registered-source failures, not all possible missing information.
@@ -46,4 +46,12 @@ Local 390px browser: October grade notice and October 1 city/club notices visibl
 - JavaScript syntax and `git diff --check`: passed.
 - Installed-environment `pip-audit`: no known vulnerabilities at check time.
 
-Deployment results are appended after live verification.
+## Deployment and collection transport
+
+- Repair commit `9d6bded` and Railpack runtime correction `fa134b8` deployed successfully. The actual Railway builder is Railpack; its runtime now contains Poppler and Japanese Tesseract (`jpn` verified).
+- GitHub source audit run `36862287466` read 290 entries / 285 bodies. Five image PDFs remain original-only: three 四小 and two 桜町. Linux OCR read one additional 桜町 issue compared with the local audit. This run remains nonzero for the partial sources; this is intentional, not a passing completeness claim.
+- Direct requests from Railway to `www.city.musashino.lg.jp` returned HTTP 403 while GitHub Actions read all 15 configured city sources successfully. No access-control bypass was used. A scheduled Actions collector now supplies authenticated, validated public snapshots to Railway's persistent catalog; school collection remains on the web server.
+- The collector runs twice hourly, uploads successful sources independently, rejects incomplete source payloads and never handles parent/subscription data. The receiver checks credentials, origin, registry fingerprint, exact source hosts, document bounds and timestamps before writing. Replays cannot replace newer data; failed disk writes cannot be acknowledged as imported.
+- A scheduled source older than 90 minutes has a visible delay warning without changing its actual check time. Initial missing data is explicitly unavailable. The refresh button reads the newest scheduled snapshot rather than promising an immediate upstream fetch.
+
+Final deployment and authenticated sync results are appended after live verification.
