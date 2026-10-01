@@ -67,6 +67,7 @@ class Settings:
     web_cache_ttl_seconds: float = 300.0
     web_catalog_max_wait_seconds: float = 12.0
     web_catalog_refresh_interval_seconds: float = 900.0
+    web_catalog_cache_path: Path | None = None
     web_push_state_path: Path | None = None
     web_push_database_path: Path | None = None
     web_push_database_url: str | None = None
@@ -113,6 +114,7 @@ class Settings:
         web_cache_ttl_value = os.getenv("WEB_CACHE_TTL_SECONDS") or raw.get("web_cache_ttl_seconds", 300)
         web_catalog_max_wait_value = os.getenv("WEB_CATALOG_MAX_WAIT_SECONDS") or raw.get("web_catalog_max_wait_seconds", 12)
         web_catalog_refresh_interval_value = os.getenv("WEB_CATALOG_REFRESH_INTERVAL_SECONDS") or raw.get("web_catalog_refresh_interval_seconds", 900)
+        web_catalog_cache_value = str(os.getenv("WEB_CATALOG_CACHE_PATH") or raw.get("web_catalog_cache_path") or "state/catalog_cache.sqlite3")
         web_push_state_value = str(os.getenv("WEB_PUSH_STATE_PATH") or raw.get("web_push_state_path") or "state/push_subscriptions.json")
         web_push_database_raw = os.getenv("WEB_PUSH_DATABASE_PATH") or raw.get("web_push_database_path")
         web_push_database_url = (os.getenv("WEB_PUSH_DATABASE_URL") or os.getenv("DATABASE_URL") or raw.get("web_push_database_url") or "").strip() or None
@@ -141,6 +143,7 @@ class Settings:
             web_cache_ttl_seconds=_parse_positive_number(web_cache_ttl_value, "web_cache_ttl_seconds", minimum=30),
             web_catalog_max_wait_seconds=_parse_positive_number(web_catalog_max_wait_value, "web_catalog_max_wait_seconds", minimum=1),
             web_catalog_refresh_interval_seconds=_parse_positive_number(web_catalog_refresh_interval_value, "web_catalog_refresh_interval_seconds", minimum=60),
+            web_catalog_cache_path=_resolve_path(root, web_catalog_cache_value),
             web_push_state_path=_resolve_path(root, web_push_state_value),
             web_push_database_path=_resolve_path(root, str(web_push_database_raw)) if web_push_database_raw else None,
             web_push_database_url=web_push_database_url,

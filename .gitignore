@@ -3,4 +3,5 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .env
-
+state/*.sqlite3
+state/*.sqlite3-*

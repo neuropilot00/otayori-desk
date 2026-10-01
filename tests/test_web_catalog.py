@@ -207,6 +207,44 @@ class CatalogConcurrencyTests(unittest.TestCase):
             finally:
                 service.close()
 
+    def test_catalog_cache_survives_service_restart(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            registry = Path(directory) / "sources.json"
+            registry.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "sources": [
+                            {"id": "one", "name": "One", "ward": "武蔵野市", "level": "小学校", "page_url": "https://example.test/one", "mode": "static", "static_text": "cached public notice"},
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            cache_path = Path(directory) / "catalog.sqlite3"
+            settings = SimpleNamespace(
+                web_cache_ttl_seconds=300,
+                web_catalog_max_wait_seconds=2,
+                web_catalog_cache_path=cache_path,
+                request_timeout_seconds=1,
+                max_document_bytes=1_000_000,
+                user_agent="test",
+            )
+            first = CatalogService(settings, registry)
+            try:
+                original = first.get_source("one", "全学年", refresh=True)
+            finally:
+                first.close()
+
+            second = CatalogService(settings, registry)
+            second._scan_source = lambda *_args: (_ for _ in ()).throw(AssertionError("should use persistent cache"))  # type: ignore[method-assign]
+            try:
+                restored = second.get_source("one", "全学年")
+            finally:
+                second.close()
+            self.assertEqual(restored.notices[0].text, original.notices[0].text)
+
     def test_expensive_mutation_endpoints_have_a_small_request_limit(self) -> None:
         limiter = _RequestRateLimiter()
         self.assertTrue(limiter.allow("127.0.0.1", "refresh", 1, 60)[0])

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 import threading
 import time
 import unicodedata
@@ -161,6 +162,113 @@ class CatalogResult:
             "notices": [notice.to_summary() for notice in self.notices],
             "warnings": list(self.warnings),
         }
+
+
+class CatalogCacheStore:
+    """Small persistent cache for public notices; no parent identity data is stored."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path.expanduser().resolve()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+        with self._connect() as connection:
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS catalog_results (
+                    cache_key TEXT PRIMARY KEY,
+                    source_id TEXT NOT NULL,
+                    grade TEXT NOT NULL,
+                    scanned_at TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    updated_at REAL NOT NULL
+                )
+                """
+            )
+        try:
+            self.path.chmod(0o600)
+        except OSError:
+            pass
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self.path, timeout=5.0)
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("PRAGMA busy_timeout=5000")
+        return connection
+
+    def load(self, source: SourceConfig, grade: str) -> CatalogResult | None:
+        key = f"{source.id}\0{grade}"
+        try:
+            with self._lock, self._connect() as connection:
+                row = connection.execute(
+                    "SELECT payload_json FROM catalog_results WHERE cache_key = ?",
+                    (key,),
+                ).fetchone()
+        except sqlite3.Error:
+            return None
+        if not row:
+            return None
+        try:
+            payload = json.loads(row[0])
+            if not isinstance(payload, dict):
+                return None
+            if payload.get("source_id") != source.id or payload.get("grade") != grade:
+                return None
+            notices = tuple(self._notice_from_payload(item) for item in payload.get("notices", []))
+            return CatalogResult(source, grade, str(payload["scanned_at"]), notices, tuple(str(item) for item in payload.get("warnings", [])))
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            return None
+
+    def save(self, result: CatalogResult) -> None:
+        key = f"{result.source.id}\0{result.grade}"
+        payload = json.dumps(
+            {
+                "source_id": result.source.id,
+                "grade": result.grade,
+                "scanned_at": result.scanned_at,
+                "warnings": list(result.warnings),
+                "notices": [notice.to_detail() for notice in result.notices],
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        try:
+            with self._lock, self._connect() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO catalog_results(cache_key, source_id, grade, scanned_at, payload_json, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(cache_key) DO UPDATE SET
+                        scanned_at = excluded.scanned_at,
+                        payload_json = excluded.payload_json,
+                        updated_at = excluded.updated_at
+                    """,
+                    (key, result.source.id, result.grade, result.scanned_at, payload, time.time()),
+                )
+        except sqlite3.Error:
+            # Public collection remains available if the optional cache volume is unavailable.
+            return
+
+    @staticmethod
+    def _notice_from_payload(payload: object) -> CatalogNotice:
+        if not isinstance(payload, dict):
+            raise TypeError("cached notice must be an object")
+        return CatalogNotice(
+            id=str(payload["id"]),
+            source_id=str(payload["source_id"]),
+            source_name=str(payload["source_name"]),
+            ward=str(payload["ward"]),
+            level=str(payload["level"]),
+            grade=str(payload["grade"]),
+            title=str(payload["title"]),
+            kind=str(payload["kind"]),
+            url=str(payload["url"]),
+            text=str(payload.get("text", "")),
+            content_hash=str(payload.get("content_hash", "")),
+            date_label=str(payload.get("date_label", "更新資料")),
+            published_label=str(payload.get("published_label", "更新資料")),
+            source_group=str(payload.get("source_group", "school")),
+            feed_group=str(payload.get("feed_group", "notices")),
+        )
 
 
 class _NewsLinkParser(HTMLParser):
@@ -519,6 +627,8 @@ class CatalogService:
         self._cache_ttl_seconds = max(30.0, float(getattr(settings, "web_cache_ttl_seconds", 300.0)))
         self._max_wait_seconds = min(60.0, max(1.0, float(getattr(settings, "web_catalog_max_wait_seconds", 12.0))))
         self._lock = threading.RLock()
+        cache_path = getattr(settings, "web_catalog_cache_path", None)
+        self._cache_store = CatalogCacheStore(cache_path) if cache_path else None
         self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="catalog-scan")
         self._inflight: dict[tuple[str, str], Future[CatalogResult]] = {}
         self._refresh_stop = threading.Event()
@@ -575,9 +685,17 @@ class CatalogService:
             cached = self._cache.get(key)
             if not refresh and cached and time.monotonic() - cached[0] < self._cache_ttl_seconds:
                 return cached[1]
+        if not refresh and self._cache_store:
+            persisted = self._cache_store.load(source, effective_grade)
+            if persisted is not None:
+                with self._lock:
+                    self._cache[key] = (time.monotonic(), persisted)
+                return persisted
         result = self._scan_source(source, effective_grade)
         with self._lock:
             self._cache[key] = (time.monotonic(), result)
+        if self._cache_store:
+            self._cache_store.save(result)
         return result
 
     def get_many(
@@ -665,6 +783,13 @@ class CatalogService:
             cached = self._cache.get((source.id, effective_grade))
             if cached and time.monotonic() - cached[0] < self._cache_ttl_seconds:
                 results[source.id] = cached[1]
+                return True
+        if self._cache_store:
+            persisted = self._cache_store.load(source, effective_grade)
+            if persisted is not None:
+                with self._lock:
+                    self._cache[(source.id, effective_grade)] = (time.monotonic(), persisted)
+                results[source.id] = persisted
                 return True
         return False
 
