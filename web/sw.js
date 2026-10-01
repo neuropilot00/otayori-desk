@@ -1,6 +1,7 @@
 const CACHE_PREFIX = "otayori-desk-shell-";
-const CACHE_NAME = `${CACHE_PREFIX}v7`;
-const SHELL = ["/", "/app.css?v=20261001-12", "/app.js?v=20261001-12", "/policies.html", "/policies.js?v=20261001-12", "/manifest.webmanifest", "/icon.svg"];
+const CACHE_NAME = `${CACHE_PREFIX}v9`;
+// policies.html still uses the previous stylesheet URL.
+const SHELL = ["/", "/app.css?v=20261001-14", "/app.css?v=20261001-12", "/app.js?v=20261001-14", "/policies.html", "/policies.js?v=20261001-12", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));

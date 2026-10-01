@@ -6,14 +6,23 @@ const state = {
   loading: false,
   requestVersion: 0,
   requestController: null,
+  detailRequestVersion: 0,
+  refreshStatus: null,
   feed: "notices",
   nearbyDistances: new Map(),
   push: { config: null, registration: null, subscribed: false, ready: false, busy: false, scopes: [], scopesKnown: false, statusKey: "consentRequired" },
   language: localStorage.getItem("school-news-language") || "ja",
 };
 
+const REFRESH_POLL_INTERVAL_MS = 2000;
+const REFRESH_POLL_TIMEOUT_MS = 60000;
+
 const I18N = {
   ja: {
+    "status.refreshing": "最新の資料を確認中です…", "status.refreshTimeout": "確認に時間がかかっています。しばらくしてから更新してください。", "status.refreshError": "最新情報の再確認に失敗しました。表示中の情報と原文をご確認ください。",
+    "extraction.unverified": "本文未確認", "coverage.readable": "本文", "coverage.documents": "資料",
+    "common.event": "開催", "common.deadline": "締切", "events.upcoming": "開催・締切が近い順", "events.past": "終了したイベント", "reference.title": "施設案内（連絡帳ではありません）",
+    "coverage.title": "収集範囲・確認状況", "coverage.official": "公式ページ ↗", "coverage.checked": "公開範囲を確認", "coverage.partial": "一部のみ確認", "coverage.reference": "施設案内", "coverage.unavailable": "取得できませんでした", "coverage.unknown": "確認状況不明", "coverage.collected": "取得", "coverage.discovered": "候補", "coverage.limit": "収集上限あり", "coverage.checkedAt": "確認日時", "coverage.attention": "確認の注意", "coverage.sourceUnknown": "発信元未確認",
     "page.title": "おたより desk — 学校のお知らせベータ", "brand.subtitle": "東京の学校だより / ベータ", "status.public": "公開ページを確認中", "status.errorPrefix": "確認できませんでした：", "language.label": "表示言語", "theme.toggle": "テーマを切り替え", "detail.view": "詳細を見る",
     "hero.eyebrow": "保護者向けベータ · 公開ソース", "hero.title": "学校のお知らせを、<br><em>ひとつにまとめて</em>。",
     "hero.lede": "学校ごとに別々のページを探さなくても、学校だより・学年だより・行事のお知らせをここでまとめて確認できます。", "hero.note": "お子さまの学校・学年を選ぶと、必要なお知らせだけを表示します。",
@@ -29,6 +38,10 @@ const I18N = {
     "kind.grade": "学年だより", "kind.school": "学校だより", "kind.afterSchool": "学童クラブ", "kind.city": "市・教育委員会", "kind.related": "関連資料", "category.supplies": "持ち物・準備", "category.submission": "提出物・締切", "category.events": "行事・予定", "category.parent": "保護者への連絡", "category.school": "学校全体への連絡", "category.study": "学習予定", "notifications.unavailable": "この公開ベータでは通知設定を準備中です。", "notifications.permission": "ブラウザの通知を許可してください。", "notifications.ready": "この条件の新着を通知します。", "notifications.enabled": "通知設定済み", "notifications.error": "通知を設定できませんでした。",
   },
   ko: {
+    "status.refreshing": "최신 자료를 확인 중입니다…", "status.refreshTimeout": "확인이 지연되고 있습니다. 잠시 후 다시 갱신해 주세요.", "status.refreshError": "최신 정보 재확인에 실패했습니다. 표시된 정보와 원문을 확인해 주세요.",
+    "extraction.unverified": "본문 미확인", "coverage.readable": "본문", "coverage.documents": "자료",
+    "common.event": "개최", "common.deadline": "마감", "events.upcoming": "개최·마감이 가까운 순", "events.past": "종료된 이벤트", "reference.title": "시설 안내 (가정 통신문이 아닙니다)",
+    "coverage.title": "수집 범위·확인 현황", "coverage.official": "공식 페이지 ↗", "coverage.checked": "공개 범위 확인", "coverage.partial": "일부만 확인", "coverage.reference": "시설 안내", "coverage.unavailable": "가져오지 못함", "coverage.unknown": "확인 상태 불명", "coverage.collected": "수집", "coverage.discovered": "후보", "coverage.limit": "수집 상한 있음", "coverage.checkedAt": "확인 일시", "coverage.attention": "확인 주의", "coverage.sourceUnknown": "출처 미확인",
     "page.title": "오타요리 desk — 학교 소식 베타", "brand.subtitle": "도쿄 학교 소식 / 베타", "status.public": "공개 페이지 확인 중", "status.errorPrefix": "확인하지 못했습니다: ", "language.label": "표시 언어", "theme.toggle": "테마 전환", "detail.view": "자세히 보기",
     "hero.eyebrow": "보호자용 베타 · 공개 자료", "hero.title": "학교 소식을,<br><em>한곳에 모아서</em>.", "hero.lede": "학교별 페이지를 따로 찾지 않아도 학교 소식·학년 소식·행사 안내를 한곳에서 확인할 수 있습니다.", "hero.note": "아이의 학교와 학년을 선택하면 필요한 소식만 표시합니다.",
     "metrics.schools": "등록 학교", "metrics.schoolsFoot": "초·중·고 샘플", "metrics.notices": "이번 표시 수", "metrics.noticesFoot": "공개 원문 기준", "metrics.wards": "지원 지역", "metrics.wardsFoot": "도쿄 확장용 레지스트리", "metrics.scanned": "마지막 확인", "metrics.scannedFoot": "5분 캐시 · 수동 갱신 가능",
@@ -37,9 +50,17 @@ const I18N = {
     "status.checking": "학교 페이지를 확인하고 있습니다.", "status.loading": "학교 페이지 확인 중…", "empty.title": "표시할 소식이 없습니다", "empty.body": "필터를 바꾸거나 다시 갱신해 주세요.", "detail.eyebrow": "원문 우선", "detail.placeholderTitle": "소식을 선택하면 원문이 여기에 표시됩니다.", "detail.placeholderBody": "요약뿐 아니라 분류된 내용과 일본어 원문·공식 링크를 함께 확인할 수 있습니다.", "detail.original": "일본어 원문", "detail.openOriginal": "공식 원문 열기 ↗", "detail.loading": "본문을 불러오는 중…", "detail.errorEyebrow": "상세 오류", "detail.errorTitle": "원문을 불러오지 못했습니다.", "card.original": "원문 ↗", "common.items": "건", "common.published": "게시", "common.unknownDate": "날짜 미확인", "common.latest": "최신", "archive.past": "지난 소식", "archive.none": "지난 소식이 없습니다", "summary.notices": "학교·생활 소식", "summary.events": "이벤트", "summary.noData": "표시할 정보가 없습니다", "summary.warning": " · 일부 자료 확인 경고 ", "summary.warningSuffix": "건", "summary.all": "전체", "summary.archiveSuffix": ".", "kind.grade": "학년 소식", "kind.school": "학교 소식", "kind.afterSchool": "학동 클럽", "kind.city": "시·교육위원회", "kind.related": "관련 자료", "category.supplies": "준비물", "category.submission": "제출물·마감", "category.events": "행사·일정", "category.parent": "보호자 안내", "category.school": "학교 전체 안내", "category.study": "학습 일정",
   },
   en: {
+    "status.refreshing": "Checking for the latest documents…", "status.refreshTimeout": "Checking is taking longer. Please refresh again later.", "status.refreshError": "Could not recheck the latest updates. Please review the displayed information and originals.",
+    "extraction.unverified": "Text unverified", "coverage.readable": "Readable", "coverage.documents": "Documents",
+    "common.event": "Event", "common.deadline": "Deadline", "events.upcoming": "Upcoming dates first", "events.past": "Past events", "reference.title": "Facility information (not school messages)",
+    "coverage.title": "Collection scope & status", "coverage.official": "Official page ↗", "coverage.checked": "Public scope checked", "coverage.partial": "Partly checked", "coverage.reference": "Facility information", "coverage.unavailable": "Could not retrieve", "coverage.unknown": "Status unknown", "coverage.collected": "Collected", "coverage.discovered": "Candidates", "coverage.limit": "Collection limit reached", "coverage.checkedAt": "Checked at", "coverage.attention": "Source warnings", "coverage.sourceUnknown": "Unknown source",
     "page.title": "Otayori desk — school updates beta", "brand.subtitle": "Tokyo school notes / beta", "status.public": "Checking public pages", "status.errorPrefix": "Could not check: ", "language.label": "Language", "theme.toggle": "Change theme", "detail.view": "View details", "hero.eyebrow": "Parent beta · public sources", "hero.title": "School updates,<br><em>all in one place</em>.", "hero.lede": "See school letters, grade updates, and event information together without searching each school page.", "hero.note": "Choose your child's school and grade to show only relevant updates.", "metrics.schools": "Registered schools", "metrics.schoolsFoot": "Elementary · middle · high", "metrics.notices": "Shown now", "metrics.noticesFoot": "Based on public originals", "metrics.wards": "Areas", "metrics.wardsFoot": "Registry ready for expansion", "metrics.scanned": "Last checked", "metrics.scannedFoot": "5-min cache · refresh anytime", "workspace.eyebrow": "My child's school desk", "workspace.title": "Updates to check today", "actions.refresh": "Refresh now", "actions.notifications": "Get notifications", "feeds.notices": "School & daily life", "feeds.events": "Events", "groups.school": "School", "groups.municipality": "Musashino City / Board of Education", "groups.afterSchool": "After-school care", "filters.change": "Change school / grade", "filters.school": "School", "filters.allSchools": "All schools", "filters.group": "Source", "filters.allGroups": "All sources", "filters.level": "School type", "filters.all": "All", "filters.ward": "Area", "filters.allAreas": "All areas", "filters.grade": "Grade", "filters.nearby": "Find nearby schools", "filters.map": "Open map ↗", "levels.elementary": "Elementary", "levels.middle": "Middle", "levels.high": "High school", "grades.one": "Grade 1", "grades.two": "Grade 2", "grades.three": "Grade 3", "grades.four": "Grade 4", "grades.five": "Grade 5", "grades.six": "Grade 6", "grades.all": "All grades", "status.checking": "Checking school pages.", "status.loading": "Checking school pages…", "empty.title": "No updates to show", "empty.body": "Change a filter or refresh again.", "detail.eyebrow": "Original first", "detail.placeholderTitle": "Select an update to see the original here.", "detail.placeholderBody": "Review categorized items together with the Japanese original and official link.", "detail.original": "Japanese original", "detail.openOriginal": "Open official original ↗", "detail.loading": "Loading the original…", "detail.errorEyebrow": "Detail error", "detail.errorTitle": "Could not load the original.", "card.original": "Original ↗", "common.items": " items", "common.published": "Published", "common.unknownDate": "Date unknown", "common.latest": "LATEST", "archive.past": "Past updates", "archive.none": "No past updates", "summary.notices": "School & daily life", "summary.events": "Events", "summary.noData": "No information to show", "summary.warning": " · source warnings: ", "summary.warningSuffix": "", "summary.all": "All ", "summary.archiveSuffix": ".", "kind.grade": "Grade letter", "kind.school": "School letter", "kind.afterSchool": "After-school care", "kind.city": "City / board", "kind.related": "Related", "category.supplies": "What to bring", "category.submission": "Submissions & deadlines", "category.events": "Events & schedule", "category.parent": "For parents", "category.school": "School-wide notice", "category.study": "Study schedule",
   },
   zh: {
+    "status.refreshing": "正在确认最新资料…", "status.refreshTimeout": "确认耗时较长，请稍后再次刷新。", "status.refreshError": "无法再次确认最新信息，请查看当前信息和原文。",
+    "extraction.unverified": "正文未确认", "coverage.readable": "正文", "coverage.documents": "资料",
+    "common.event": "举办", "common.deadline": "截止", "events.upcoming": "按举办·截止日期由近到远", "events.past": "已结束的活动", "reference.title": "设施介绍（非家校通知）",
+    "coverage.title": "收集范围·确认状态", "coverage.official": "官方页面 ↗", "coverage.checked": "已检查公开范围", "coverage.partial": "仅确认部分", "coverage.reference": "设施介绍", "coverage.unavailable": "无法获取", "coverage.unknown": "确认状态未知", "coverage.collected": "已获取", "coverage.discovered": "候选", "coverage.limit": "已达收集上限", "coverage.checkedAt": "确认时间", "coverage.attention": "来源提醒", "coverage.sourceUnknown": "来源未确认",
     "page.title": "おたより desk — 学校通知测试版", "brand.subtitle": "东京学校通知 / 测试版", "status.public": "正在检查公开页面", "status.errorPrefix": "无法确认：", "language.label": "显示语言", "theme.toggle": "切换主题", "detail.view": "查看详情", "hero.eyebrow": "家长测试版 · 公开来源", "hero.title": "学校通知，<br><em>集中在一处</em>。", "hero.lede": "无需逐个寻找学校网页，即可集中查看学校通知、年级通知和活动信息。", "hero.note": "选择孩子的学校和年级，只显示需要的信息。", "metrics.schools": "已登记学校", "metrics.schoolsFoot": "小学·初中·高中", "metrics.notices": "当前显示", "metrics.noticesFoot": "以公开原文为准", "metrics.wards": "覆盖地区", "metrics.wardsFoot": "可扩展东京地区", "metrics.scanned": "最后检查", "metrics.scannedFoot": "5分钟缓存·可手动更新", "workspace.eyebrow": "孩子的学校桌面", "workspace.title": "今天要确认的通知", "actions.refresh": "立即更新", "actions.notifications": "接收通知", "feeds.notices": "学校·日常", "feeds.events": "活动", "groups.school": "学校", "groups.municipality": "武藏野市·教育委员会／市政府", "groups.afterSchool": "课后托管", "filters.change": "更改学校·年级", "filters.school": "学校", "filters.allSchools": "所有学校", "filters.group": "来源", "filters.allGroups": "所有来源", "filters.level": "学校类型", "filters.all": "全部", "filters.ward": "地区", "filters.allAreas": "所有地区", "filters.grade": "年级", "filters.nearby": "查找附近学校", "filters.map": "在地图中查看 ↗", "levels.elementary": "小学", "levels.middle": "初中", "levels.high": "高中", "grades.one": "一年级", "grades.two": "二年级", "grades.three": "三年级", "grades.four": "四年级", "grades.five": "五年级", "grades.six": "六年级", "grades.all": "全年级", "status.checking": "正在检查学校页面。", "status.loading": "正在检查学校页面…", "empty.title": "没有可显示的通知", "empty.body": "请更改筛选条件或再次更新。", "detail.eyebrow": "优先查看原文", "detail.placeholderTitle": "选择通知后将在这里显示原文。", "detail.placeholderBody": "可同时查看分类内容、日文原文和官方链接。", "detail.original": "日文原文", "detail.openOriginal": "打开官方原文 ↗", "detail.loading": "正在加载原文…", "detail.errorEyebrow": "详情错误", "detail.errorTitle": "无法加载原文。", "card.original": "原文 ↗", "common.items": "条", "common.published": "发布", "common.unknownDate": "日期未知", "common.latest": "最新", "archive.past": "过去的通知", "archive.none": "没有过去的通知", "summary.notices": "学校·日常通知", "summary.events": "活动", "summary.noData": "没有可显示的信息", "summary.warning": " · 部分来源有警告 ", "summary.warningSuffix": "条", "summary.all": "共", "summary.archiveSuffix": "。", "kind.grade": "年级通知", "kind.school": "学校通知", "kind.afterSchool": "课后托管", "kind.city": "市政府·教育委员会", "kind.related": "相关资料", "category.supplies": "携带物品·准备", "category.submission": "提交物·截止日期", "category.events": "活动·日程", "category.parent": "给家长的通知", "category.school": "全校通知", "category.study": "学习安排",
   },
 };
@@ -116,6 +137,62 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function officialLink(url, label, className = "") {
+  try {
+    const parsed = new URL(url);
+    if (!["https:", "http:"].includes(parsed.protocol) || parsed.username || parsed.password) return "";
+    return `<a class="${className}" href="${escapeHtml(parsed.href)}" target="_blank" rel="noreferrer noopener">${escapeHtml(label)}</a>`;
+  } catch (_) { return ""; }
+}
+
+function sourceConfig(item) {
+  return state.config?.sources?.find((source) => source.id === item.source_id) || {};
+}
+
+function isReference(notice) {
+  const source = sourceConfig(notice);
+  const coverage = state.payload?.coverage?.find((item) => item.source_id === notice.source_id);
+  return notice.coverage_kind === "reference" || source.coverage_kind === "reference" || coverage?.coverage_kind === "reference"
+    || notice.mode === "static" || source.mode === "static";
+}
+
+function dateKey(value) {
+  const match = String(value || "").match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (!match) return "";
+  const key = `${match[1]}-${match[2]}-${match[3]}`;
+  const date = new Date(`${key}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === key ? key : "";
+}
+
+function isEvent(notice) {
+  return notice.feed_group === "events" || notice.date_kind === "event" || Boolean(notice.event_date);
+}
+
+function eventDate(notice) {
+  return dateKey(notice.event_date) ? notice.event_date : notice.date_kind === "event" && dateKey(notice.date_label) ? notice.date_label : "";
+}
+
+function eventSortKey(notice) {
+  // Publication dates cannot tell us whether an event is upcoming or over.
+  return dateKey(eventDate(notice)) || dateKey(notice.deadline_date);
+}
+
+function noticeDateText(notice) {
+  const labels = [];
+  if (isEvent(notice)) labels.push(`${t("common.event")} ${localizeDateLabel(eventDate(notice))}`);
+  if (dateKey(notice.deadline_date)) labels.push(`${t("common.deadline")} ${localizeDateLabel(notice.deadline_date)}`);
+  const issue = notice.date_kind === "issue" || (!notice.date_kind && /月号$/.test(notice.date_label || ""));
+  if (issue) labels.push(localizeDateLabel(notice.date_label));
+  const published = notice.date_kind === "unknown" ? "" : notice.published_label || (notice.date_kind === "published" ? notice.date_label : "");
+  if (dateKey(published)) labels.push(`${t("common.published")} ${localizeDateLabel(published)}`);
+  return labels.length ? labels.join(" · ") : t("common.unknownDate");
+}
+
+function japanToday() {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  return ["year", "month", "day"].map((type) => parts.find((part) => part.type === type).value).join("-");
 }
 
 function selectedValue(id) {
@@ -220,13 +297,15 @@ function setLoading(value) {
   if (value) {
     $("empty-state").hidden = true;
     $("notice-list").replaceChildren();
+    $("coverage-details").hidden = true;
+    $("coverage-alert").hidden = true;
   }
 }
 
 function formatScanTime(value) {
   if (!value) return "—";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return state.language === "ja" ? "たった今" : "Just now";
+  if (Number.isNaN(date.getTime())) return "—";
   const locale = state.language === "ko" ? "ko-KR" : state.language === "en" ? "en-US" : state.language === "zh" ? "zh-CN" : "ja-JP";
   return date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
 }
@@ -278,32 +357,74 @@ function formatFilterSummary(latest, total, warningCount, archiveCount) {
   return `${latest ? `${latest.label} ${formatCount(latest.items.length)}` : t("summary.noData")}（${t("summary.all")}${formatCount(total)}）${warningText}・${archiveText}`;
 }
 
+function coverageStatus(source) {
+  if (source.status === "unavailable" || source.status === "partial") return source.status;
+  if (source.limit_reached || (Number.isInteger(source.readable_count) && source.readable_count >= 0 && source.readable_count < source.notice_count)) return "partial";
+  if (isReference(source) || source.status === "reference") return "reference";
+  return source.status === "checked" ? "checked" : "unknown";
+}
+
+function renderCoverage(payload) {
+  const rows = (payload.coverage || []).map((item) => ({ ...sourceConfig(item), ...item }));
+  const warnings = [...(payload.warnings || []), ...(payload.errors || [])];
+  const problems = rows.filter((source) => ["partial", "unavailable", "unknown"].includes(coverageStatus(source)));
+  const alert = $("coverage-alert");
+  const sourceName = (source) => source.source_name || source.name || source.source_id || t("coverage.sourceUnknown");
+  const problemLabels = problems.map((source) => `${sourceName(source)}（${t(`coverage.${coverageStatus(source)}`)}）`);
+  if (!problemLabels.length && (warnings.length || payload.complete === false)) problemLabels.push(t("coverage.partial"));
+  const warningText = problemLabels.length ? `${t("coverage.attention")}：${problemLabels.join(" · ")}` : "";
+  alert.textContent = [warningText, state.refreshStatus ? t(`status.${state.refreshStatus}`) : ""].filter(Boolean).join(" · ");
+  alert.hidden = !alert.textContent;
+  $("coverage-details").hidden = false;
+  $("coverage-count").textContent = String(rows.length);
+  $("coverage-list").innerHTML = rows.map((source) => {
+    const status = coverageStatus(source);
+    const count = (value) => Number.isInteger(value) && value >= 0 ? formatCount(value) : "—";
+    const countsDiffer = Number.isInteger(source.readable_count) && source.readable_count >= 0 && Number.isInteger(source.notice_count) && source.notice_count >= 0 && source.readable_count !== source.notice_count;
+    const collected = countsDiffer ? `${t("coverage.readable")} ${source.readable_count} / ${t("coverage.documents")} ${source.notice_count}` : `${t("coverage.collected")} ${count(source.notice_count)}`;
+    const checked = new Date(source.checked_at || "");
+    const checkedAt = Number.isNaN(checked.getTime()) ? "—" : checked.toLocaleString({ ja: "ja-JP", ko: "ko-KR", en: "en-US", zh: "zh-CN" }[state.language] || "ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) + " JST";
+    return `<li class="coverage-source"><div class="coverage-source-heading"><strong>${escapeHtml(sourceName(source))}</strong><span class="coverage-status status-${status}">${escapeHtml(t(`coverage.${status}`))}</span>${officialLink(source.page_url, t("coverage.official"))}</div>
+      <p>${escapeHtml(collected)} · ${escapeHtml(t("coverage.discovered"))} ${escapeHtml(count(source.discovered_count))}${source.limit_reached ? ` · <strong>${escapeHtml(t("coverage.limit"))}</strong>` : ""}</p>
+      ${source.coverage_note ? `<p lang="ja">${escapeHtml(source.coverage_note)}</p>` : ""}
+      ${isReference(source) || source.status === "reference" ? '<p lang="ja">施設の基本情報です。日々の連絡・新着通知の確認対象ではありません。</p>' : ""}
+      <small>${escapeHtml(t("coverage.checkedAt"))} ${escapeHtml(checkedAt)}</small></li>`;
+  }).join("") || `<li>${escapeHtml(t("coverage.unknown"))}</li>`;
+  $("coverage-warnings").innerHTML = warnings.map((warning) => {
+    const message = typeof warning === "string" ? warning : `${sourceName({ ...sourceConfig(warning), ...warning })}：${warning.message || warning.error || ""}`;
+    return `<li lang="ja">${escapeHtml(message)}</li>`;
+  }).join("");
+  $("coverage-warnings").hidden = !warnings.length;
+}
+
 function renderNoticeCard(notice) {
-  const categories = (notice.category_names || []).slice(0, 3).map((category) => `<span>${escapeHtml(localizeLabel(category))}</span>`).join("");
+  const originalOnly = notice.extraction_status === "original_only";
+  const categories = (originalOnly ? [] : notice.category_names || []).slice(0, 3).map((category) => `<span>${escapeHtml(localizeLabel(category))}</span>`).join("");
   const levelClass = notice.level === "高等学校" ? "coral" : notice.level === "中学校" ? "mint" : "";
-  const sourceGroup = notice.source_group || "school";
+  const sourceGroup = ["school", "municipality", "after_school"].includes(notice.source_group) ? notice.source_group : "school";
   const sourceGroupLabel = localizeLabel(notice.source_group_label || "学校");
-  const dateLabel = localizeDateLabel(notice.date_label);
-  const publishedLabel = localizeDateLabel(notice.published_label);
   return `<article class="notice-card group-${escapeHtml(sourceGroup)}" data-notice-id="${escapeHtml(notice.id)}">
-    <button type="button" aria-label="${escapeHtml(notice.source_name)} ${escapeHtml(notice.title)} ${escapeHtml(t("detail.view"))}">
+    <button type="button" aria-expanded="false" aria-label="${escapeHtml(notice.source_name)} ${escapeHtml(notice.title)}${originalOnly ? ` ${escapeHtml(t("extraction.unverified"))}` : ""} ${escapeHtml(t("detail.view"))}">
       <div class="notice-meta">
         <span class="pill source-pill">${escapeHtml(notice.source_name)}</span>
         <span class="pill group-pill">${escapeHtml(sourceGroupLabel)}</span>
-        <span class="pill ${levelClass}">${escapeHtml(localizeLabel(notice.level))}</span>
+        ${(notice.source_group || "school") === "school" ? `<span class="pill ${levelClass}">${escapeHtml(localizeLabel(notice.level))}</span>` : ""}
         <span class="pill soft">${escapeHtml(localizeLabel(notice.kind_label))}</span>
+        ${originalOnly ? `<span class="pill extraction-badge">${escapeHtml(t("extraction.unverified"))}</span>` : ""}
       </div>
-      <h3 class="notice-title">${escapeHtml(notice.title)}</h3>
-      <p class="notice-excerpt">${escapeHtml(notice.excerpt || t("detail.openOriginal"))}</p>
+      <h3 class="notice-title" lang="ja">${escapeHtml(notice.title)}</h3>
+      <p class="notice-excerpt" lang="ja">${escapeHtml(notice.excerpt || t("detail.openOriginal"))}</p>
     </button>
-    <div class="notice-footer"><span class="source-line">${escapeHtml(notice.ward)} · ${escapeHtml(dateLabel)}${notice.published_label && notice.published_label !== notice.date_label ? ` · ${escapeHtml(t("common.published"))} ${escapeHtml(publishedLabel)}` : ""}</span><span class="category-list">${categories}</span><a class="card-source-link" href="${escapeHtml(notice.url)}" target="_blank" rel="noreferrer noopener">${escapeHtml(t("card.original"))}</a></div>
+    <div class="notice-footer"><span class="source-line notice-dates">${escapeHtml([notice.ward, noticeDateText(notice)].filter(Boolean).join(" · "))}</span><span class="category-list">${categories}</span>${officialLink(notice.url, t("card.original"), "card-source-link")}</div>
     <div class="inline-detail" aria-live="polite"></div>
   </article>`;
 }
 
 function noticeMonthKey(notice) {
-  const match = String(notice.date_label || "").match(/^(\d{4})\/(\d{2})/);
-  return match ? `${match[1]}-${match[2]}` : "unknown";
+  if (notice.date_kind === "unknown") return "unknown";
+  const value = notice.date_kind === "event" ? eventDate(notice) : notice.date_label || notice.published_label;
+  const match = String(value || "").match(/^(\d{4})\/(\d{1,2})(?:月号|\/\d{2})$/);
+  return match && Number(match[2]) >= 1 && Number(match[2]) <= 12 ? `${match[1]}-${match[2].padStart(2, "0")}` : "unknown";
 }
 
 function noticeMonthLabel(key) {
@@ -333,32 +454,55 @@ function renderNoticeGroup(group) {
   return `<div class="notice-list-group">${group.items.map(renderNoticeCard).join("")}</div>`;
 }
 
+function noticeSections(notices, feed = state.feed, today = japanToday()) {
+  const references = notices.filter(isReference);
+  const updates = notices.filter((notice) => !isReference(notice));
+  if (feed === "events") {
+    const dated = updates.filter((notice) => eventSortKey(notice));
+    const upcoming = dated.filter((notice) => eventSortKey(notice) >= today).sort((a, b) => eventSortKey(a).localeCompare(eventSortKey(b)));
+    const past = dated.filter((notice) => eventSortKey(notice) < today).sort((a, b) => eventSortKey(b).localeCompare(eventSortKey(a)));
+    return {
+      active: upcoming.length ? [{ key: "upcoming", label: t("events.upcoming"), items: upcoming }] : [],
+      archive: past.length ? [{ key: "past-events", label: t("events.past"), items: past }] : [],
+      undated: updates.filter((notice) => !eventSortKey(notice)), references, total: updates.length,
+    };
+  }
+  const groups = groupedNotices(updates);
+  const dated = groups.filter((group) => group.key !== "unknown");
+  return { active: dated.slice(0, 1), archive: dated.slice(1), undated: groups.find((group) => group.key === "unknown")?.items || [], references, total: updates.length };
+}
+
 function renderNotices(payload) {
   state.payload = payload;
   state.notices = payload.notices || [];
   const list = $("notice-list");
-  const groups = groupedNotices(state.notices);
-  const latest = groups[0];
-  const archiveHtml = groups.slice(1).map((group) => `<details class="archive-group"><summary><span><strong>${escapeHtml(group.label)}</strong><small>${escapeHtml(t("archive.past"))}</small></span><b>${escapeHtml(formatCount(group.items.length))}</b></summary>${renderNoticeGroup(group)}</details>`).join("");
-  list.innerHTML = latest
-    ? `<section class="latest-section"><div class="feed-section-head"><div><p class="eyebrow">${escapeHtml(t("common.latest"))}</p><h3>${escapeHtml(latest.label)}</h3></div><span>${escapeHtml(formatCount(latest.items.length))}</span></div>${renderNoticeGroup(latest)}</section>${archiveHtml}`
-    : "";
+  const sections = noticeSections(state.notices);
+  const latest = sections.active[0];
+  const activeHtml = sections.active.map((group) => `<section class="latest-section"><div class="feed-section-head"><div>${state.feed === "events" ? "" : `<p class="eyebrow">${escapeHtml(t("common.latest"))}</p>`}<h3>${escapeHtml(group.label)}</h3></div><span>${escapeHtml(formatCount(group.items.length))}</span></div>${renderNoticeGroup(group)}</section>`).join("");
+  const undatedHtml = sections.undated.length ? `<section class="undated-section"><div class="feed-section-head compact-section-head"><h3>${escapeHtml(t("common.unknownDate"))}</h3><span>${escapeHtml(formatCount(sections.undated.length))}</span></div>${renderNoticeGroup({ items: sections.undated })}</section>` : "";
+  const archiveHtml = sections.archive.map((group) => `<details class="archive-group"><summary><span><strong>${escapeHtml(group.label)}</strong>${state.feed === "events" ? "" : `<small>${escapeHtml(t("archive.past"))}</small>`}</span><b>${escapeHtml(formatCount(group.items.length))}</b></summary>${renderNoticeGroup(group)}</details>`).join("");
+  const referenceHtml = sections.references.length ? `<details class="archive-group reference-group"><summary><span><strong>${escapeHtml(t("reference.title"))}</strong></span><b>${escapeHtml(formatCount(sections.references.length))}</b></summary><p class="reference-note" lang="ja">施設の基本情報です。日々の連絡・新着通知の確認対象ではありません。</p>${renderNoticeGroup({ items: sections.references })}</details>` : "";
+  list.innerHTML = activeHtml + undatedHtml + archiveHtml + referenceHtml;
   $("empty-state").hidden = state.notices.length !== 0;
-  $("metric-notices").textContent = payload.notice_count ?? state.notices.length;
+  $("metric-notices").textContent = sections.total;
   $("metric-scanned").textContent = formatScanTime(payload.scanned_at);
-  const archiveCount = Math.max(0, groups.length - 1);
-  $("filter-summary").textContent = formatFilterSummary(latest, state.notices.length, payload.warnings?.length || 0, archiveCount);
-  const partial = payload.complete === false || payload.coverage?.some((source) => source.status === "partial") || Boolean(payload.warnings?.length);
-  if (partial) $("filter-summary").textContent += ` · ${pilotText("partial")}`;
+  const summaryGroup = latest || (sections.undated.length ? { label: t("common.unknownDate"), items: sections.undated } : null);
+  const summary = state.feed === "events"
+    ? `${t("summary.events")}：${formatCount(latest?.items.length || 0)} · ${t("events.past")} ${formatCount(sections.archive[0]?.items.length || 0)}`
+    : formatFilterSummary(summaryGroup, sections.total, 0, sections.archive.length);
+  $("filter-summary").textContent = summary + (sections.undated.length && (latest || state.feed === "events") ? ` · ${t("common.unknownDate")} ${formatCount(sections.undated.length)}` : "");
+  renderCoverage(payload);
   list.querySelectorAll(".notice-card").forEach((card) => {
     card.querySelector("button")?.addEventListener("click", () => selectNotice(card.dataset.noticeId));
   });
-  if (!state.notices.length) {
+  const firstVisible = latest?.items[0] || sections.undated[0];
+  const selectedStillVisible = state.notices.some((notice) => notice.id === state.selectedId);
+  if (!selectedStillVisible && !firstVisible) {
+    state.selectedId = null;
     renderPlaceholder();
     return;
   }
-  const selectedStillVisible = state.notices.some((notice) => notice.id === state.selectedId);
-  selectNotice(selectedStillVisible ? state.selectedId : state.notices[0].id, { showInline: false });
+  selectNotice(selectedStillVisible ? state.selectedId : firstVisible.id, { showInline: false });
 }
 
 function renderPlaceholder() {
@@ -366,19 +510,20 @@ function renderPlaceholder() {
 }
 
 function detailMarkup(notice) {
-  const categoryHtml = Object.entries(notice.categories || {}).map(([name, items]) => {
+  const originalOnly = notice.extraction_status === "original_only";
+  const categoryHtml = Object.entries(originalOnly ? {} : notice.categories || {}).map(([name, items]) => {
     const list = items.slice(0, 8).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
     return `<section class="detail-section"><h4>${escapeHtml(localizeLabel(name))}</h4><ul>${list}</ul></section>`;
   }).join("");
-  const dateLabel = localizeDateLabel(notice.date_label);
-  const publishedLabel = localizeDateLabel(notice.published_label);
   return `<div class="detail-content">
-    <div class="notice-meta"><span class="pill">${escapeHtml(notice.source_name)}</span><span class="pill group-pill">${escapeHtml(localizeLabel(notice.source_group_label || "学校"))}</span><span class="pill soft">${escapeHtml(localizeLabel(notice.kind_label))}</span><span class="pill soft">${escapeHtml(dateLabel)}</span></div>
-    <h3>${escapeHtml(notice.title)}</h3>
-    <p class="source-line">${escapeHtml(notice.ward)} · ${escapeHtml(localizeLabel(notice.level))} · ${escapeHtml(localizeLabel(notice.grade))}${notice.published_label ? ` · ${escapeHtml(t("common.published"))} ${escapeHtml(publishedLabel)}` : ""}</p>
-    <a class="detail-link" href="${escapeHtml(notice.url)}" target="_blank" rel="noreferrer noopener">${escapeHtml(t("detail.openOriginal"))}</a>
+    <div class="notice-meta"><span class="pill">${escapeHtml(notice.source_name)}</span><span class="pill group-pill">${escapeHtml(localizeLabel(notice.source_group_label || "学校"))}</span><span class="pill soft">${escapeHtml(localizeLabel(notice.kind_label))}</span>${originalOnly ? `<span class="pill extraction-badge">${escapeHtml(t("extraction.unverified"))}</span>` : ""}</div>
+    <h3 lang="ja">${escapeHtml(notice.title)}</h3>
+    <p class="source-line notice-dates">${escapeHtml([notice.ward, ...((notice.source_group || "school") === "school" ? [localizeLabel(notice.level), localizeLabel(notice.grade)] : []), noticeDateText(notice)].filter(Boolean).join(" · "))}</p>
+    ${isReference(notice) ? `<p class="reference-note">${escapeHtml(t("reference.title"))}</p>` : ""}
+    ${officialLink(notice.url, t("detail.openOriginal"), "detail-link")}
+    <p class="extraction-note" lang="ja">${originalOnly ? "本文は確認できていません。公式の原文を開いてご確認ください。自動抽出（OCRを含む）には読み違い・抜けが生じる場合があります。" : "表示本文は機械による抽出結果です（画像資料ではOCRを使う場合があります）。読み違い・抜けが生じる場合があるため、日付や持ち物は公式の原文でご確認ください。"}</p>
     ${categoryHtml}
-    <section class="detail-section"><h4>${escapeHtml(t("detail.original"))}</h4><div class="original-copy">${escapeHtml(notice.text)}</div></section>
+    <section class="detail-section"><h4>${escapeHtml(t(originalOnly ? "extraction.unverified" : "detail.original"))}</h4><div class="original-copy" lang="ja">${escapeHtml(notice.text)}</div></section>
   </div>`;
 }
 
@@ -387,6 +532,7 @@ function renderDetail(notice, card = null, showInline = true) {
   document.querySelectorAll(".notice-card.expanded").forEach((otherCard) => {
     if (otherCard !== card || !showInline) {
       otherCard.classList.remove("expanded");
+      otherCard.querySelector("button")?.setAttribute("aria-expanded", "false");
       const inlineDetail = otherCard.querySelector(".inline-detail");
       if (inlineDetail) inlineDetail.replaceChildren();
     }
@@ -396,14 +542,18 @@ function renderDetail(notice, card = null, showInline = true) {
     if (inlineDetail) {
       inlineDetail.innerHTML = detailMarkup(notice);
       card.classList.add("expanded");
+      card.querySelector("button")?.setAttribute("aria-expanded", "true");
     }
   }
 }
 
 async function selectNotice(id, { showInline = true } = {}) {
+  const detailRequestVersion = ++state.detailRequestVersion;
+  const requestVersion = state.requestVersion;
   const selectedCard = [...document.querySelectorAll(".notice-card")].find((card) => card.dataset.noticeId === id);
   if (showInline && selectedCard?.classList.contains("expanded") && state.selectedId === id) {
     selectedCard.classList.remove("expanded", "selected");
+    selectedCard.querySelector("button")?.setAttribute("aria-expanded", "false");
     selectedCard.querySelector(".inline-detail")?.replaceChildren();
     state.selectedId = null;
     renderPlaceholder();
@@ -415,14 +565,15 @@ async function selectNotice(id, { showInline = true } = {}) {
     const inlineDetail = selectedCard.querySelector(".inline-detail");
     if (inlineDetail) inlineDetail.innerHTML = `<p class="inline-loading">${escapeHtml(t("detail.loading"))}</p>`;
     selectedCard.classList.add("expanded");
+    selectedCard.querySelector("button")?.setAttribute("aria-expanded", "true");
   }
   try {
     const suffix = queryString();
     const detail = await api(`/api/notices/${encodeURIComponent(id)}${suffix ? `?${suffix}` : ""}`);
-    if (state.selectedId !== id) return;
+    if (state.selectedId !== id || requestVersion !== state.requestVersion || detailRequestVersion !== state.detailRequestVersion) return;
     renderDetail(detail, selectedCard, showInline);
   } catch (error) {
-    if (state.selectedId !== id) return;
+    if (state.selectedId !== id || requestVersion !== state.requestVersion || detailRequestVersion !== state.detailRequestVersion) return;
     const message = `<div class="detail-placeholder"><div class="placeholder-mark" aria-hidden="true">!</div><p class="eyebrow">${escapeHtml(t("detail.errorEyebrow"))}</p><h3>${escapeHtml(t("detail.errorTitle"))}</h3><p>${escapeHtml(error.message)}</p></div>`;
     $("detail-panel").innerHTML = message;
     if (selectedCard && showInline) {
@@ -432,30 +583,75 @@ async function selectNotice(id, { showInline = true } = {}) {
   }
 }
 
+function payloadRefreshing(payload) {
+  return payload.refreshing === true || payload.coverage?.some((source) => source.refreshing === true);
+}
+
+function waitForRefreshPoll(signal) {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) { reject(new DOMException("Aborted", "AbortError")); return; }
+    const timer = setTimeout(() => { signal.removeEventListener("abort", abort); resolve(); }, REFRESH_POLL_INTERVAL_MS);
+    function abort() {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
+      reject(new DOMException("Aborted", "AbortError"));
+    }
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
 async function loadNotices(refresh = false) {
   state.requestVersion += 1;
   const requestVersion = state.requestVersion;
   state.requestController?.abort();
   const controller = new AbortController();
   state.requestController = controller;
+  state.refreshStatus = null;
+  state.payload = null;
+  let pollTimeout = null;
+  let polling = false;
+  let timedOut = false;
   setLoading(true);
   try {
     const query = queryString();
+    const getPath = `/api/notices${query ? `?${query}` : ""}`;
     const path = `/api/${refresh ? "refresh" : "notices"}${query ? `?${query}` : ""}`;
     const options = refresh ? { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}", signal: controller.signal } : { signal: controller.signal };
-    const payload = await api(path, options);
-    if (requestVersion !== state.requestVersion) return;
+    let payload = await api(path, options);
+    if (requestVersion !== state.requestVersion || controller.signal.aborted) return;
+    state.refreshStatus = payloadRefreshing(payload) ? "refreshing" : null;
     renderNotices(payload);
-    if (refresh && payload.refreshed) {
+    setLoading(false);
+    if (payloadRefreshing(payload)) {
+      polling = true;
+      // One deadline covers both the delays and any in-flight GET.
+      pollTimeout = setTimeout(() => { timedOut = true; controller.abort(); }, REFRESH_POLL_TIMEOUT_MS);
+      while (payloadRefreshing(payload)) {
+        await waitForRefreshPoll(controller.signal);
+        payload = await api(getPath, { signal: controller.signal });
+        if (requestVersion !== state.requestVersion || controller.signal.aborted) return;
+        state.refreshStatus = payloadRefreshing(payload) ? "refreshing" : null;
+        // Unchanged cached responses should not collapse an open card or refetch its detail.
+        if (JSON.stringify(payload) !== JSON.stringify(state.payload)) renderNotices(payload);
+      }
+    }
+    if (refresh) {
       $("filter-summary").setAttribute("data-refreshed-at", payload.scanned_at || "");
     }
   } catch (error) {
-    if (error?.name === "AbortError" || requestVersion !== state.requestVersion) return;
+    if (requestVersion !== state.requestVersion) return;
+    if (polling && (timedOut || error?.name !== "AbortError")) {
+      state.refreshStatus = timedOut ? "refreshTimeout" : "refreshError";
+      renderCoverage(state.payload);
+      return;
+    }
+    if (error?.name === "AbortError") return;
     $("notice-list").replaceChildren();
     $("empty-state").hidden = false;
     $("filter-summary").textContent = `${t("status.errorPrefix")}${error.message}`;
     renderPlaceholder();
   } finally {
+    clearTimeout(pollTimeout);
     if (requestVersion === state.requestVersion) {
       state.requestController = null;
       setLoading(false);
@@ -741,6 +937,7 @@ async function deleteDeviceData() {
     state.push.scopes = []; state.push.scopesKnown = true;
     state.requestVersion += 1;
     state.requestController?.abort();
+    state.refreshStatus = null;
     setLoading(false);
     const results = await Promise.allSettled([
       (async () => { await removeBrowserPush(); const registration = await appPushRegistration(); if (registration && !await registration.unregister()) throw new Error("unregister failed"); state.push.registration = null; })(),
@@ -756,6 +953,8 @@ async function deleteDeviceData() {
     $("level-filter").value = "all";
     state.selectedId = null; state.notices = []; state.payload = null;
     $("notice-list").replaceChildren();
+    $("coverage-details").hidden = true;
+    $("coverage-alert").hidden = true;
     $("filter-summary").textContent = t("summary.noData");
     $("feedback-issue").value = ""; $("feedback-template").value = "";
     $("feedback-fallback").hidden = true;

@@ -272,18 +272,23 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
         )
         notices = [notice.to_summary() for result in results for notice in result.notices]
         notices.sort(key=lambda notice: (notice["date_label"] != "更新資料", notice["date_label"], notice["source_name"]), reverse=True)
-        warnings = [warning for result in results for warning in result.warnings]
+        warnings = [f"{result.source.name}: {warning}" for result in results for warning in result.warnings]
+        checked_results = [result for result in results if result.source.coverage_kind != "reference"] or results
         return {
-            "scanned_at": max(result.scanned_at for result in results),
+            # A freshly fetched facility reference must not make an old school
+            # snapshot look freshly checked. Empty means at least one is unknown.
+            "scanned_at": min(result.scanned_at for result in checked_results),
             "source_count": len(results),
             "notice_count": len(notices),
+            "reference_count": sum(notice["coverage_kind"] == "reference" for notice in notices),
             "notices": notices,
             "warnings": warnings,
             "filters": {"source_id": source_id or "all", "level": level or "all", "ward": ward or "all", "grade": grade or "default", "feed": feed_group or "all", "group": source_group or "all"},
             "cache_ttl_seconds": self.server.catalog.cache_ttl_seconds,
             "refreshed": force_refresh or refresh,
-            "coverage": [{"source_id": result.source.id, "checked_at": result.scanned_at, "status": "partial" if result.warnings else "checked", "notice_count": len(result.notices)} for result in results],
+            "coverage": [result.coverage() for result in results],
             "complete": not warnings,
+            "refreshing": any(result.refreshing for result in results),
         }
 
     def _notice_payload(self, notice_id: str, query: dict[str, list[str]]) -> dict[str, Any] | None:

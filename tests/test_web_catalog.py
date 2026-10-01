@@ -24,9 +24,9 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertEqual({source.level for source in sources}, {"小学校", "中学校", "高等学校"})
         self.assertEqual(sources[0].default_grade, "1年生")
         self.assertGreaterEqual(len(sources[0].page_urls), 5)
-        self.assertEqual(sources[1].grades, ("全学年",))
-        musashino_schools = {source.id for source in sources if source.ward == "武蔵野市" and source.source_group == "school" and source.level == "小学校"}
-        musashino_clubs = {source.id for source in sources if source.ward == "武蔵野市" and source.source_group == "after_school"}
+        self.assertEqual(next(source for source in sources if source.id == "sakurano_gakudo").grades, ("全学年",))
+        musashino_schools = {source.collection_id for source in sources if source.ward == "武蔵野市" and source.source_group == "school" and source.level == "小学校"}
+        musashino_clubs = {source.id for source in sources if source.ward == "武蔵野市" and source.source_group == "after_school" and source.coverage_kind == "reference"}
         self.assertEqual(len(musashino_schools), 12)
         self.assertEqual(len(musashino_clubs), 12)
 
@@ -157,8 +157,8 @@ class NewsIndexTests(unittest.TestCase):
             title="(裏面)学年だより",
             kind="grade_news",
         )
-        self.assertEqual(_date_labels(school, "学校だより 第7号\n10月の行事予定"), ("2026/09/18", "2026/09/18"))
-        self.assertEqual(_date_labels(grade, "学年だより（10月号）"), ("2026/10月号", "2026/09/18"))
+        self.assertEqual(_date_labels(school, "学校だより 第7号\n令和8 年9 月18 日\n10月の行事予定"), ("2026/09/18", "2026/09/18"))
+        self.assertEqual(_date_labels(grade, "学年だより（10月号）\n令和8年9月18日"), ("2026/10月号", "2026/09/18"))
 
 
 class CatalogPayloadTests(unittest.TestCase):

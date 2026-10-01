@@ -7,6 +7,7 @@ import sqlite3
 import threading
 import time
 import unicodedata
+from email.message import Message
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed, wait
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, replace
@@ -29,6 +30,7 @@ from .extractor import (
 )
 from .fetcher import FetchError, HttpFetcher, LinkCandidate, parse_relevant_links
 from .formatter import KIND_LABELS, categorize_text
+from .notice_dates import activity_dates, publication_date, calendar_date
 
 
 class CatalogError(RuntimeError):
@@ -69,6 +71,12 @@ class SourceConfig:
     longitude: float | None = None
     static_text: str = ""
     static_title: str = ""
+    allowed_hosts: tuple[str, ...] = ()
+    link_patterns: tuple[str, ...] = ()
+    discovery_depth: int = 0
+    coverage_kind: str = "notices"
+    coverage_note: str = "登録した公開ページの直近の資料が対象です。非公開の連絡帳は含みません。"
+    shared_with_ward: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -94,6 +102,8 @@ class SourceConfig:
             "content_kind": self.content_kind,
             "latitude": self.latitude,
             "longitude": self.longitude,
+            "coverage_kind": self.coverage_kind,
+            "coverage_note": self.coverage_note,
         }
 
 
@@ -114,6 +124,11 @@ class CatalogNotice:
     published_label: str
     source_group: str
     feed_group: str
+    coverage_kind: str = "notices"
+    event_date: str = ""
+    deadline_date: str = ""
+    date_kind: str = "published"
+    extraction_status: str = "ok"
 
     def categories(self) -> dict[str, list[str]]:
         return {key: value for key, value in categorize_text(self.text, self.kind).items() if value}
@@ -140,6 +155,11 @@ class CatalogNotice:
             "category_names": list(categories),
             "excerpt": " ".join(lines[:4])[:320],
             "line_count": len(lines),
+            "coverage_kind": self.coverage_kind,
+            "event_date": self.event_date,
+            "deadline_date": self.deadline_date,
+            "date_kind": self.date_kind,
+            "extraction_status": self.extraction_status,
         }
 
     def to_detail(self) -> dict[str, Any]:
@@ -155,6 +175,25 @@ class CatalogResult:
     scanned_at: str
     notices: tuple[CatalogNotice, ...]
     warnings: tuple[str, ...] = ()
+    discovered_count: int = 0
+    limit_reached: bool = False
+    refreshing: bool = False
+
+    def coverage(self) -> dict[str, Any]:
+        return {
+            "source_id": self.source.id, "source_name": self.source.name,
+            "page_url": self.source.page_url,
+            "checked_at": self.scanned_at if self.source.mode != "static" else "",
+            "status": ("partial" if self.notices else "unavailable") if self.warnings else (
+                "reference" if self.source.coverage_kind == "reference" else "checked"),
+            "coverage_kind": self.source.coverage_kind,
+            "coverage_note": self.source.coverage_note,
+            "notice_count": len(self.notices),
+            "readable_count": sum(notice.extraction_status == "ok" for notice in self.notices),
+            "discovered_count": self.discovered_count,
+            "limit_reached": self.limit_reached,
+            "refreshing": self.refreshing,
+        }
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -204,7 +243,7 @@ class CatalogCacheStore:
 
     @staticmethod
     def _source_fingerprint(source: SourceConfig) -> str:
-        return sha256_text(json.dumps(asdict(source), sort_keys=True, ensure_ascii=False))
+        return sha256_text("collection-v2\n" + json.dumps(asdict(source), sort_keys=True, ensure_ascii=False))
 
     def load(self, source: SourceConfig, grade: str) -> CatalogResult | None:
         key = f"{source.id}\0{grade}"
@@ -227,7 +266,7 @@ class CatalogCacheStore:
             if payload.get("source_fingerprint") != self._source_fingerprint(source):
                 return None
             notices = tuple(self._notice_from_payload(item) for item in payload.get("notices", []))
-            return CatalogResult(source, grade, str(payload["scanned_at"]), notices, tuple(str(item) for item in payload.get("warnings", [])))
+            return CatalogResult(source, grade, str(payload["scanned_at"]), notices, tuple(str(item) for item in payload.get("warnings", [])), int(payload.get("discovered_count", len(notices))), bool(payload.get("limit_reached", False)))
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             return None
 
@@ -240,6 +279,8 @@ class CatalogCacheStore:
                 "grade": result.grade,
                 "scanned_at": result.scanned_at,
                 "warnings": list(result.warnings),
+                "discovered_count": result.discovered_count,
+                "limit_reached": result.limit_reached,
                 "notices": [notice.to_detail() for notice in result.notices],
             },
             ensure_ascii=False,
@@ -282,6 +323,11 @@ class CatalogCacheStore:
             published_label=str(payload.get("published_label", "更新資料")),
             source_group=str(payload.get("source_group", "school")),
             feed_group=str(payload.get("feed_group", "notices")),
+            coverage_kind=str(payload.get("coverage_kind", "notices")),
+            event_date=str(payload.get("event_date", "")),
+            deadline_date=str(payload.get("deadline_date", "")),
+            date_kind=str(payload.get("date_kind", "published")),
+            extraction_status=str(payload.get("extraction_status", "ok")),
         )
 
 
@@ -295,6 +341,9 @@ class _NewsLinkParser(HTMLParser):
         self._text: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() == "img" and self._href is not None and not any(part.strip() for part in self._text):
+            alt = dict(attrs).get("alt") or ""
+            self._text.append(re.sub(r"の\d+ページ目のサムネイル$", "", alt))
         if tag.lower() != "a" or self._href is not None:
             return
         href = dict(attrs).get("href")
@@ -316,7 +365,7 @@ class _NewsLinkParser(HTMLParser):
 class _ScopedNewsTextParser(HTMLParser):
     """Extract only the article body from the Tokyo metropolitan CMS."""
 
-    BLOCK_TAGS = {"br", "div", "h1", "h2", "h3", "h4", "li", "p", "section", "td", "th", "tr"}
+    BLOCK_TAGS = {"br", "div", "dt", "dd", "h1", "h2", "h3", "h4", "li", "p", "section", "td", "th", "tr"}
     VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 
     def __init__(self) -> None:
@@ -365,7 +414,7 @@ class _ScopedNewsTextParser(HTMLParser):
 class _MainContentTextParser(HTMLParser):
     """Extract the main/article body from public municipal HTML pages."""
 
-    BLOCK_TAGS = {"br", "div", "h1", "h2", "h3", "h4", "li", "p", "section", "td", "th", "tr"}
+    BLOCK_TAGS = {"br", "div", "dt", "dd", "h1", "h2", "h3", "h4", "li", "p", "section", "td", "th", "tr"}
     VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 
     def __init__(self) -> None:
@@ -377,7 +426,8 @@ class _MainContentTextParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         lowered = tag.lower()
         attributes = dict(attrs)
-        is_target = lowered == "main" or (lowered == "article" and attributes.get("id") == "content")
+        is_target = (lowered == "main" or (lowered == "article" and attributes.get("id") == "content")
+                     or bool(re.fullmatch(r"hp_jpage\d+_read", attributes.get("id") or "")))
         if self._depth == 0 and is_target:
             self._depth = 1
             return
@@ -448,8 +498,8 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
             page_urls.append(page_url)
     page_url = page_urls[0]
     mode = str(raw.get("mode", "pdf")).strip().lower()
-    if mode not in {"pdf", "html_news", "html_page", "static"}:
-        raise CatalogError(f"sources[{index}].mode must be pdf, html_news, html_page, or static")
+    if mode not in {"pdf", "html_news", "html_page", "static", "mixed", "link_index"}:
+        raise CatalogError(f"sources[{index}].mode is not supported")
     raw_grades = raw.get("grades")
     if raw_grades is None:
         raw_grades = ["1年生", "2年生", "3年生", "4年生", "5年生", "6年生", "全学年"]
@@ -485,6 +535,19 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
     exclude_patterns = tuple(str(value) for value in raw.get("exclude_patterns", []))
     _compile_patterns(include_patterns, "include")
     _compile_patterns(exclude_patterns, "exclude")
+    link_patterns = tuple(str(value) for value in raw.get("link_patterns", []))
+    _compile_patterns(link_patterns, "link")
+    discovery_depth = int(raw.get("discovery_depth", 0))
+    if not 0 <= discovery_depth <= 2:
+        raise CatalogError("discovery_depth must be between 0 and 2")
+    if mode == "link_index" and not link_patterns:
+        raise CatalogError("link_index requires reviewed link_patterns")
+    allowed_hosts = tuple(str(host).lower() for host in raw.get("allowed_hosts", []))
+    if any(not re.fullmatch(r"[a-z0-9.-]+", host) for host in allowed_hosts):
+        raise CatalogError("allowed_hosts must contain hostnames only")
+    coverage_kind = str(raw.get("coverage_kind", "reference" if mode == "static" else "notices"))
+    if coverage_kind not in {"reference", "notices"}:
+        raise CatalogError("coverage_kind must be reference or notices")
     return SourceConfig(
         id=str(raw["id"]).strip(),
         name=str(raw["name"]).strip(),
@@ -509,6 +572,12 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
         longitude=longitude,
         static_text=static_text,
         static_title=static_title,
+        allowed_hosts=allowed_hosts,
+        link_patterns=link_patterns,
+        discovery_depth=discovery_depth,
+        coverage_kind=coverage_kind,
+        coverage_note=str(raw.get("coverage_note", SourceConfig.coverage_note)),
+        shared_with_ward=bool(raw.get("shared_with_ward", False)),
     )
 
 
@@ -539,33 +608,29 @@ def load_sources(path: Path) -> list[SourceConfig]:
 
 
 def _news_date(value: str) -> str:
-    published_hint = re.search(
-        r"(?:掲載|更新|公開|発行|投稿日|配信)[^0-9０-９]{0,14}"
-        r"((?:20[0-9０-９]{2})[/-][0-9０-９]{1,2}[/-][0-9０-９]{1,2}|"
-        r"(?:20[0-9０-９]{2})年[0-9０-９]{1,2}月[0-9０-９]{1,2}日)",
-        unicodedata.normalize("NFKC", value),
-        re.IGNORECASE,
-    )
-    if published_hint:
-        value = published_hint.group(1)
+    labelled = publication_date("", value)
+    if labelled:
+        return labelled
+    # A PDF's printed, standalone header date can identify publication. A
+    # filename timestamp or an activity date embedded in prose cannot.
     normalized = unicodedata.normalize("NFKC", value)
-    match = re.search(r"(20\d{2})[/-](\d{1,2})[/-](\d{1,2})", normalized)
-    if match:
-        return f"{match.group(1)}/{int(match.group(2)):02d}/{int(match.group(3)):02d}"
-    japanese = re.search(r"(20\d{2})年(\d{1,2})月(\d{1,2})日", normalized)
-    if japanese:
-        return f"{japanese.group(1)}/{int(japanese.group(2)):02d}/{int(japanese.group(3)):02d}"
-    timestamp = re.search(r"(?<!\d)(20\d{2})(\d{2})(\d{2})(?:\d{6})?(?!\d)", normalized)
-    if timestamp:
-        return f"{timestamp.group(1)}/{timestamp.group(2)}/{timestamp.group(3)}"
+    for line in normalized.splitlines():
+        if re.search(r"(?:日|\d)\s*(?:発行|掲載|公開|更新)\s*$", line):
+            parsed = calendar_date(line)
+            if parsed:
+                return parsed
+        if re.fullmatch(r"\s*(?:20\d{2}\s*[年/.-]|令和\s*(?:元|\d+)\s*年)\s*\d{1,2}\s*[月/.-]\s*\d{1,2}\s*日?\s*(?:[（(][月火水木金土日](?:曜日)?[）)])?\s*", line):
+            parsed = calendar_date(line)
+            if parsed:
+                return parsed
     return "更新資料"
 
 
 def _issue_month(value: str, kind: str | None = None) -> int | None:
     """Return an issue month only when the text looks like a monthly notice."""
     patterns = (
-        r"(?:学校だより|学年だより)[^\n]{0,18}?([0-9０-９]{1,2})月号",
-        r"([0-9０-９]{1,2})月号",
+        r"(?:学校だより|学年だより)[^\n]{0,18}?([0-9０-９]{1,2})\s*月\s*号",
+        r"([0-9０-９]{1,2})\s*月\s*号",
     )
     normalized = unicodedata.normalize("NFKC", value)
     if kind == "school_news":
@@ -584,23 +649,34 @@ def _issue_month(value: str, kind: str | None = None) -> int | None:
 
 
 def _html_page_published_date(page_html: str) -> str:
-    meta = re.search(
-        r"<meta\b[^>]*name=[\"'](?:modified_date|dateModified)[\"'][^>]*content=[\"']([^\"']+)",
-        page_html,
-        re.IGNORECASE,
-    )
-    if not meta:
-        return "更新資料"
-    return _news_date(meta.group(1))
+    return publication_date(page_html, html_to_text(page_html.encode("utf-8"))) or "更新資料"
 
 
 def _date_labels(candidate: LinkCandidate, text: str, metadata: str = "") -> tuple[str, str]:
-    published_label = _news_date(f"{candidate.title} {candidate.url}\n{metadata}\n{text}")
+    # HTML metadata is authoritative (including unknown); an event date in the
+    # body must never become a publication date.
+    published_label = metadata if metadata else _news_date(f"{candidate.title}\n{text[:400]}")
+    issue_month = _issue_month(f"{candidate.title}\n{text}", candidate.kind)
     if published_label != "更新資料":
         year_match = re.match(r"(20\d{2})/", published_label)
-        issue_month = _issue_month(f"{candidate.title}\n{text}", candidate.kind)
         if year_match and issue_month:
             return f"{year_match.group(1)}/{issue_month:02d}月号", published_label
+    elif issue_month and not metadata:
+        header = unicodedata.normalize("NFKC", f"{candidate.title}\n{text[:400]}")
+        fiscal = re.search(r"令和\s*(\d+)\s*年度", header)
+        if fiscal:
+            year = 2018 + int(fiscal[1]) + (1 if issue_month <= 3 else 0)
+            return f"{year}/{issue_month:02d}月号", published_label
+        calendar = re.search(r"(?:(20\d{2})\s*年|令和\s*(\d+)\s*年)\s*\d{1,2}\s*月", header)
+        if calendar:
+            year = int(calendar[1]) if calendar[1] else 2018 + int(calendar[2])
+            return f"{year}/{issue_month:02d}月号", published_label
+        # An explicit issue month may use the CMS upload YEAR as context, but
+        # the upload timestamp is never presented as its publication date.
+        upload = re.search(r"(?<!\d)(20\d{2})(\d{2})(\d{2})(?:\d{6})?(?!\d)", candidate.url)
+        if upload and calendar_date(f"{upload[1]}/{upload[2]}/{upload[3]}"):
+            year = int(upload[1]) + (1 if issue_month == 1 and int(upload[2]) == 12 else 0)
+            return f"{year}/{issue_month:02d}月号", published_label
     return published_label, published_label
 
 
@@ -614,11 +690,40 @@ def _news_title(value: str, url: str) -> str:
 def _candidate_sort_key(candidate: LinkCandidate) -> tuple[int, str, str]:
     filename = urlparse(candidate.url).path.rsplit("/", 1)[-1]
     timestamp = re.search(r"(?<!\d)(20\d{2})(\d{2})(\d{2})(?:\d{6})?(?!\d)", filename)
-    numeric_date = int(timestamp.group(0)) if timestamp else 0
+    file_id = re.search(r"/file/(\d+)$", urlparse(candidate.url).path)
+    numeric_date = int(timestamp.group(0)) if timestamp else int(file_id[1]) if file_id else 0
     return numeric_date, _clean_title(candidate.title), candidate.url
 
 
+def _is_document_url(url: str) -> bool:
+    path = urlparse(url).path.lower()
+    return path.endswith(".pdf") or bool(re.search(r"/(?:plugin/attachments|file/get|files/download)/|/(?:file|download/document)/\d+/?$", path))
+
+
+def _decode_document_html(payload: bytes, content_type: str) -> str:
+    message = Message()
+    message["content-type"] = content_type
+    encoding = message.get_content_charset()
+    if not encoding:
+        declaration = re.search(rb"<meta\b[^>]*charset\s*=\s*['\"]?\s*([\w-]+)", payload[:8192], re.IGNORECASE)
+        encoding = declaration[1].decode("ascii") if declaration else None
+    if encoding:
+        try:
+            return payload.decode(encoding)
+        except (LookupError, UnicodeError) as exc:
+            raise ExtractionError("HTMLの文字コードを読み取れません。原文をご確認ください。") from exc
+    for fallback in ("utf-8-sig", "cp932", "euc-jp"):
+        try:
+            return payload.decode(fallback)
+        except UnicodeError:
+            continue
+    raise ExtractionError("HTMLの文字コードを読み取れません。原文をご確認ください。")
+
+
 def _html_page_title(html: str, fallback: str, url: str) -> str:
+    if re.search(r'id=[\"\']hp_jpage\d+_read[\"\']', html):
+        # ICtea's h1 is the school name, not this notice/page title.
+        return _clean_title(fallback)
     for pattern in (r"<h1\b[^>]*>(.*?)</h1>", r"<title\b[^>]*>(.*?)</title>"):
         match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
         if not match:
@@ -720,10 +825,11 @@ class CatalogService:
             return result
         if result.warnings and cached:
             # A failed PDF must not silently erase the last readable version.
-            fetched_urls = {notice.url for notice in result.notices}
+            fetched_urls = {notice.url for notice in result.notices if notice.extraction_status == "ok"}
             retained = tuple(notice for notice in cached[1].notices if notice.url not in fetched_urls)
             if retained:
-                result = replace(result, notices=result.notices + retained, warnings=result.warnings + ("一部は前回取得した情報です。原文で最新情報を確認してください。",))
+                retained_urls = {notice.url for notice in retained}
+                result = replace(result, notices=tuple(notice for notice in result.notices if notice.url not in retained_urls) + retained, warnings=result.warnings + ("一部は前回取得した情報です。原文で最新情報を確認してください。",))
         with self._lock:
             self._cache[key] = (time.monotonic(), result)
         if self._cache_store and not result.warnings:
@@ -762,7 +868,8 @@ class CatalogService:
         if source_id and source_id not in {"all", "*"}:
             requested = next((source for source in selected if source.id == source_id), None)
             if requested and requested.collection_root:
-                selected = [source for source in selected if source.collection_id == requested.collection_id]
+                selected = [source for source in selected if source.collection_id == requested.collection_id
+                            or (source.shared_with_ward and source.ward == requested.ward)]
             else:
                 selected = [source for source in selected if source.id == source_id]
         if level and level not in {"all", "*"}:
@@ -780,7 +887,6 @@ class CatalogService:
         if not selected:
             raise CatalogError("no enabled source matches the requested filters")
         results: dict[str, CatalogResult] = {}
-        errors: list[str] = []
         futures = {
             source.id: self._submit_source(source, grade, refresh)
             for source in selected
@@ -793,10 +899,13 @@ class CatalogService:
             try:
                 results[source.id] = future.result()
             except Exception as exc:
-                errors.append(f"{source.name}: {exc.__class__.__name__}")
+                logging.getLogger(__name__).warning("source_scan_failed source=%s type=%s", source.id, type(exc).__name__)
+                fallback = results.get(source.id)
+                results[source.id] = replace(fallback, warnings=("最新情報を確認できません。前回取得した情報です。",), refreshing=False) if fallback else CatalogResult(source, self._effective_grade(source, grade), "", (), ("公開ページを確認できません。原文をご確認ください。",))
         for future in not_done:
             source = future_sources[future]
-            errors.append(f"{source.name}: source check exceeded {int(self._max_wait_seconds)} seconds")
+            if source.id not in results:
+                results[source.id] = CatalogResult(source, self._effective_grade(source, grade), "", (), ("公開ページを確認中です。しばらくしてから再度表示してください。",), refreshing=True)
         for source in selected:
             if source.id not in results:
                 results[source.id] = CatalogResult(source, self._effective_grade(source, grade), "", (), ("最新情報を確認できません。公式ページをご確認ください。",))
@@ -804,19 +913,6 @@ class CatalogService:
         # refresher may be using the same scan. Completed results populate the
         # cache for the next request.
         ordered = [results[source.id] for source in selected if source.id in results]
-        if not ordered:
-            if not_done:
-                source = selected[0]
-                return [CatalogResult(source, self._effective_grade(source, grade), datetime.now(timezone.utc).isoformat(), (), tuple(errors))]
-            raise CatalogError("すべてのソースを確認できませんでした: " + " / ".join(errors))
-        if errors:
-            warning_results = []
-            for result in ordered:
-                warning_results.extend(result.warnings)
-            warning_results.extend(errors)
-            # Preserve source results while making partial failure visible to the UI.
-            first = ordered[0]
-            ordered[0] = CatalogResult(first.source, first.grade, first.scanned_at, first.notices, tuple(warning_results))
         return ordered
 
     def _cached_result(
@@ -829,10 +925,13 @@ class CatalogService:
         effective_grade = self._effective_grade(source, grade)
         cached = self._last_cached(source, effective_grade)
         if cached:
+            with self._lock:
+                inflight = self._inflight.get((source.id, effective_grade))
+                pending = inflight is not None and not inflight.done()
             if not refresh and time.monotonic() - cached[0] < self._cache_ttl_seconds:
-                results[source.id] = cached[1]
+                results[source.id] = replace(cached[1], refreshing=True) if pending else cached[1]
                 return True
-            results[source.id] = replace(cached[1], warnings=cached[1].warnings + ("更新確認中です。前回取得した情報を表示しています。",))
+            results[source.id] = replace(cached[1], warnings=cached[1].warnings + ("更新確認中です。前回取得した情報を表示しています。",), refreshing=True)
         return False
 
     def _submit_source(self, source: SourceConfig, grade: str | None, refresh: bool) -> Future[CatalogResult]:
@@ -900,12 +999,13 @@ class CatalogService:
         return not any(pattern.search(haystack) for pattern in exclude)
 
     def _scan_source(self, source: SourceConfig, grade: str) -> CatalogResult:
+        allowed_hosts = {urlparse(url).hostname for url in source.page_urls} | set(source.allowed_hosts)
         fetcher = HttpFetcher(
             timeout_seconds=self.settings.request_timeout_seconds,
             max_document_bytes=self.settings.max_document_bytes,
             user_agent=self.settings.user_agent,
             max_attempts=3,
-            allowed_hosts={urlparse(url).hostname for url in source.page_urls},
+            allowed_hosts=allowed_hosts,
         )
         warnings: list[str] = []
         candidates_by_url: dict[str, LinkCandidate] = {}
@@ -916,7 +1016,13 @@ class CatalogService:
             candidate = LinkCandidate(url=source.page_url, title=source.static_title or source.name, kind=source.content_kind)
             if self._matches(source, candidate):
                 candidates_by_url[candidate.url] = candidate
-        for page_url in (source.page_urls if source.mode != "static" else ()):
+        pending_pages = [(url, 0) for url in source.page_urls] if source.mode != "static" else []
+        visited: set[str] = set()
+        while pending_pages and len(visited) < 24:
+            page_url, depth = pending_pages.pop(0)
+            if page_url in visited:
+                continue
+            visited.add(page_url)
             try:
                 page_html = fetcher.fetch_page(page_url)
                 successful_pages += 1
@@ -925,17 +1031,27 @@ class CatalogService:
                     page_candidates = self._parse_news_links(page_html, source, page_url)
                 elif source.mode == "html_page":
                     page_candidates = [LinkCandidate(url=page_url, title=source.name, kind=source.content_kind)]
+                elif source.mode == "link_index":
+                    page_candidates = self._scoped_links(page_html, source, page_url)
                 else:
-                    page_candidates = parse_relevant_links(page_html, page_url)
+                    page_candidates = self._document_links(page_html, source, page_url)
+                    if source.mode == "mixed":
+                        page_candidates.insert(0, LinkCandidate(url=page_url, title=source.name, kind=source.content_kind))
                 for candidate in page_candidates:
-                    if source.mode == "pdf" and not urlparse(candidate.url).path.lower().endswith(".pdf"):
+                    if urlparse(candidate.url).hostname not in allowed_hosts:
                         continue
                     if self._matches(source, candidate):
                         candidates_by_url.setdefault(candidate.url, candidate)
+                if depth < source.discovery_depth:
+                    for candidate in self._scoped_links(page_html, source, page_url):
+                        if not _is_document_url(candidate.url) and candidate.url not in visited:
+                            pending_pages.append((candidate.url, depth + 1))
             except (FetchError, ValueError) as exc:
                 warnings.append(f"{page_url}: {exc}")
         if not successful_pages:
             raise CatalogError(f"{source.name} の公開ページを確認できませんでした。")
+        if pending_pages:
+            warnings.append("公開ページの確認上限に達しました。すべてのリンクを確認できていません。")
         candidates = sorted(candidates_by_url.values(), key=_candidate_sort_key, reverse=True)[: source.max_documents]
         notices: list[CatalogNotice] = []
         if not candidates:
@@ -951,6 +1067,18 @@ class CatalogService:
                     notice = future.result()
                 except (FetchError, ExtractionError, ValueError) as exc:
                     warnings.append(f"{candidate.title}: {exc}")
+                    # Preserve the discovered original even when extraction is
+                    # unavailable. An unreadable PDF is not an absent notice.
+                    label, published = _date_labels(candidate, "", "更新資料" if not _is_document_url(candidate.url) else "")
+                    notices.append(CatalogNotice(
+                        id=sha256_text(f"{source.id}\n{grade}\n{candidate.url}\noriginal-only")[:20],
+                        source_id=source.id, source_name=source.name, ward=source.ward, level=source.level,
+                        grade=grade, title=candidate.title or source.name, kind=candidate.kind,
+                        url=candidate.url, text="本文の自動読み取りを完了できませんでした。内容・日付・持ち物は公式の原文をご確認ください。",
+                        content_hash="", date_label=label, published_label="" if published == "更新資料" else published,
+                        source_group=source.source_group, feed_group=source.feed_group, coverage_kind=source.coverage_kind,
+                        date_kind="unknown" if label == "更新資料" else "published", extraction_status="original_only",
+                    ))
                     continue
                 if notice is not None:
                     notices.append(notice)
@@ -961,6 +1089,8 @@ class CatalogService:
             scanned_at=datetime.now(timezone.utc).isoformat(),
             notices=tuple(notices),
             warnings=tuple(warnings),
+            discovered_count=len(candidates_by_url),
+            limit_reached=len(candidates_by_url) > source.max_documents,
         )
 
     def _read_candidate(
@@ -971,38 +1101,56 @@ class CatalogService:
         grade: str,
         page_html: str | None = None,
     ) -> CatalogNotice | None:
+        is_html = False
+        date_text = None
+        if grade != "全学年":
+            # Standalone per-grade PDFs (e.g. library book lists) are not multi-
+            # grade newsletters. Do not expose another grade's file as grade 1.
+            heading = re.match(r"^[・＊*\s]*(?:第)?([1-6])(?:年生|学年)", unicodedata.normalize("NFKC", candidate.title))
+            if heading and f"{heading[1]}年生" != grade:
+                return None
         if source.mode == "static":
             text = source.static_text
             content_hash = sha256_text(text)
             kind = source.content_kind
             candidate = LinkCandidate(url=candidate.url, title=source.static_title or candidate.title, kind=kind)
-        elif source.mode in {"html_news", "html_page"}:
-            page_html = page_html or fetcher.fetch_page(candidate.url)
-            parser = _ScopedNewsTextParser() if source.mode == "html_news" else _MainContentTextParser()
-            parser.feed(page_html)
-            parser.close()
-            text = "\n".join(clean_text_lines("".join(parser.parts)))
-            if not text:
-                text = html_to_text(page_html.encode("utf-8"))
-            content_hash = sha256_text(text)
-            kind = candidate.kind if source.mode == "html_page" else "school_news"
-            candidate = LinkCandidate(
-                url=candidate.url,
-                title=_html_page_title(page_html, candidate.title, candidate.url) if source.mode == "html_page" else candidate.title,
-                kind=kind,
-            )
         else:
-            document = fetcher.fetch_document(candidate.url)
-            if document.content is None:
-                return None
-            raw_text = extract_document_text(document.content, document.content_type, candidate.url)
-            text = select_relevant_text(raw_text, candidate.kind, grade)
-            content_hash = sha256_bytes(document.content)
-            kind = candidate.kind
+            document = None
+            if page_html is None:
+                document = fetcher.fetch_document(candidate.url)
+                if document.content is None:
+                    raise ExtractionError("取得した資料に本文がありません。")
+                is_pdf = document.content.lstrip().startswith(b"%PDF") or "application/pdf" in document.content_type.lower()
+                if not is_pdf:
+                    if not any(token in document.content_type.lower() for token in ("html", "text")):
+                        raise ExtractionError("未対応の資料形式です。原文をご確認ください。")
+                    page_html = _decode_document_html(document.content, document.content_type)
+            if page_html is None:
+                raw_text = extract_document_text(document.content, document.content_type, candidate.url)
+                date_text = raw_text
+                text = select_relevant_text(raw_text, candidate.kind, grade)
+                content_hash = sha256_bytes(document.content)
+                kind = candidate.kind
+            else:
+                is_html = True
+                text, candidate = self._html_notice(page_html, source, candidate)
+                content_hash = sha256_text(text)
+                kind = candidate.kind
         text = "\n".join(clean_text_lines(text))
         if not text:
-            return None
+            raise ExtractionError("資料の本文を読み取れませんでした。原文をご確認ください。")
         notice_id = sha256_text(f"{source.id}\n{grade}\n{candidate.url}\n{content_hash}")[:20]
+        date_label, published_label = _date_labels(candidate, date_text if date_text is not None else text, _html_page_published_date(page_html) if is_html else "")
+        event_date, deadline_date = activity_dates(text)
+        date_kind = "issue" if "月号" in date_label else "published"
+        if source.feed_group == "events" and event_date:
+            date_label, date_kind = event_date, "event"
+        elif source.mode == "mixed" and candidate.url in source.page_urls:
+            # A mutable index contains announcements of different ages; its CMS
+            # update date is not a publication date for each announcement.
+            date_label, date_kind = "更新資料", "unknown"
+        elif date_label == "更新資料":
+            date_kind = "unknown"
         return CatalogNotice(
             id=notice_id,
             source_id=source.id,
@@ -1015,11 +1163,58 @@ class CatalogService:
             url=candidate.url,
             text=text,
             content_hash=content_hash,
-            date_label=_date_labels(candidate, text, _html_page_published_date(page_html) if source.mode in {"html_news", "html_page"} else "")[0],
-            published_label=_date_labels(candidate, text, _html_page_published_date(page_html) if source.mode in {"html_news", "html_page"} else "")[1],
+            date_label=date_label,
+            published_label="" if published_label == "更新資料" else published_label,
             source_group=source.source_group,
             feed_group=source.feed_group,
+            coverage_kind=source.coverage_kind,
+            event_date=event_date,
+            deadline_date=deadline_date,
+            date_kind=date_kind,
         )
+
+    @staticmethod
+    def _html_notice(page_html: str, source: SourceConfig, candidate: LinkCandidate) -> tuple[str, LinkCandidate]:
+        parser = _ScopedNewsTextParser() if source.mode == "html_news" else _MainContentTextParser()
+        parser.feed(page_html)
+        parser.close()
+        text = "\n".join(clean_text_lines("".join(parser.parts)))
+        if not text:
+            raise ExtractionError("公開ページの本文領域を確認できませんでした。")
+        candidate = LinkCandidate(
+            url=candidate.url,
+            title=_html_page_title(page_html, candidate.title, candidate.url) if source.mode != "html_news" else candidate.title,
+            kind=candidate.kind,
+        )
+        return text, candidate
+
+    @staticmethod
+    def _scoped_links(html: str, source: SourceConfig, page_url: str) -> list[LinkCandidate]:
+        parser = _NewsLinkParser()
+        parser.feed(html)
+        patterns = _compile_patterns(source.link_patterns, "link")
+        hosts = {urlparse(url).hostname for url in source.page_urls} | set(source.allowed_hosts)
+        result = {}
+        for href, title in parser.anchors:
+            url = urldefrag(urljoin(page_url, href))[0]
+            if url == urldefrag(page_url)[0] or urlparse(url).hostname not in hosts:
+                continue
+            if urlparse(url).scheme not in {"http", "https"}:
+                continue
+            if patterns and any(pattern.search(f"{title} {url}") for pattern in patterns):
+                result[url] = LinkCandidate(url, _clean_title(title), source.content_kind)
+        return list(result.values())
+
+    @staticmethod
+    def _document_links(html: str, source: SourceConfig, page_url: str) -> list[LinkCandidate]:
+        candidates = {item.url: item for item in parse_relevant_links(html, page_url) if _is_document_url(item.url)}
+        parser = _NewsLinkParser()
+        parser.feed(html)
+        for href, title in parser.anchors:
+            url = urldefrag(urljoin(page_url, href))[0]
+            if _is_document_url(url):
+                candidates.setdefault(url, LinkCandidate(url, _clean_title(title), source.content_kind))
+        return list(candidates.values())
 
     @staticmethod
     def _display_title(candidate: LinkCandidate, source: SourceConfig, grade: str, text: str) -> str:

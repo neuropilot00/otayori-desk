@@ -683,7 +683,8 @@ class WebPushNotifier:
         if normalized["source_id"] != "all":
             requested = next(source for source in selected if source.id == normalized["source_id"])
             if requested.collection_root:
-                selected = [source for source in selected if source.collection_id == requested.collection_id]
+                selected = [source for source in selected if source.collection_id == requested.collection_id
+                            or (getattr(source, "shared_with_ward", False) and getattr(source, "ward", None) == getattr(requested, "ward", None))]
             else:
                 selected = [requested]
         selected = [source for source in selected if source.feed_group == normalized["feed"]
@@ -752,10 +753,19 @@ class WebPushNotifier:
             )
         except CatalogError:
             return
-        # No initial baseline or delivery on empty/partial upstream responses.
-        if not results or any(result.warnings for result in results):
+        # References never participate in delivery. A failed or still-running
+        # source must not advance its baseline or block other healthy sources.
+        results = [result for result in results
+                   if getattr(result.source, "coverage_kind", "notices") != "reference"
+                   and not result.warnings and not getattr(result, "refreshing", False)
+                   and not any(getattr(notice, "extraction_status", "ok") != "ok"
+                               for notice in result.notices
+                               if getattr(notice, "coverage_kind", "notices") != "reference")]
+        if not results:
             return
-        current = {notice.id: notice.to_summary() for result in results for notice in result.notices}
+        current = {notice.id: notice.to_summary() for result in results for notice in result.notices if getattr(notice, "coverage_kind", "notices") != "reference"}
+        # A successful empty scan still establishes this source's baseline.
+        source_ids = {result.source.id for result in results}
         records = [record for record in self.store.subscriptions() if record.get("scope") == scope and _active(record)]
         for record in records:
             try:
@@ -763,14 +773,30 @@ class WebPushNotifier:
             except PushSubscriptionError:
                 continue
             state = self.store.delivery_state(record)
+            if state is not None:
+                if not isinstance(state, dict):
+                    continue
+                keys = ("known_ids", "accepted_ids") + (("source_ids",) if "source_ids" in state else ())
+                if any(not isinstance(state.get(key), list)
+                       or not all(isinstance(value, str) and value for value in state[key]) for key in keys):
+                    continue
+                if not set(state["accepted_ids"]).issubset(state["known_ids"]):
+                    # Corrupted ledgers fail closed; never repair by backfilling.
+                    continue
             if state is None:
-                self.store.save_delivery_state(record, {"known_ids": list(current), "accepted_ids": list(current)})
+                self.store.save_delivery_state(record, {"known_ids": sorted(current), "accepted_ids": sorted(current),
+                                                        "source_ids": sorted(source_ids)})
                 continue
-            if not isinstance(state, dict) or not isinstance(state.get("known_ids"), list) or not isinstance(state.get("accepted_ids"), list):
-                # Corrupted ledgers fail closed; never backfill.
-                continue
-            known = set(state["known_ids"]) | set(current)
+            previous_known = set(state["known_ids"])
+            previous_sources = set(state.get("source_ids", []))
+            known = previous_known | set(current)
             accepted = set(state["accepted_ids"])
+            newly_covered = source_ids - previous_sources
+            # Legacy ledgers have no source IDs: baseline previously unseen
+            # items once per healthy source, but keep known pending IDs pending,
+            # including IDs that reappear only after a failed source recovers.
+            accepted.update(notice_id for notice_id, notice in current.items()
+                            if notice["source_id"] in newly_covered and notice_id not in previous_known)
             pending = [notice for notice_id, notice in current.items() if notice_id not in accepted]
             if pending:
                 if not self.sending_enabled or not self.store.is_current(record):
@@ -785,7 +811,8 @@ class WebPushNotifier:
                 else:
                     accepted.update(notice["id"] for notice in pending)
             # Persist independently per recipient, retaining IDs through outages.
-            self.store.save_delivery_state(record, {"known_ids": sorted(known), "accepted_ids": sorted(accepted)})
+            self.store.save_delivery_state(record, {"known_ids": sorted(known), "accepted_ids": sorted(accepted),
+                                                    "source_ids": sorted(previous_sources | source_ids)})
 
     def _send(self, record: dict[str, Any], message: dict[str, str]) -> None:
         if not self.sending_enabled:

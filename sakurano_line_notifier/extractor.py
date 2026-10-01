@@ -197,7 +197,12 @@ def extract_document_text(payload: bytes, content_type: str = "", url: str = "")
         raise ExtractionError(f"could not extract PDF text: {url}") from exc
     text = "\n".join(pages)
     if not clean_text_lines(text):
-        raise ExtractionError(f"PDF has no extractable text; OCR is not enabled: {url}")
+        from .pdf_ocr import PdfOcrError, extract_pdf_ocr
+
+        try:
+            return extract_pdf_ocr(payload, page_count=len(pages))
+        except PdfOcrError as exc:
+            raise ExtractionError(f"PDF OCR failed: {exc}: {url}") from exc
     return text
 
 

@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/manifest.webmanifest">
     <title>おたより desk — 学校のお知らせベータ</title>
-    <link rel="stylesheet" href="/app.css?v=20261001-12">
+  <link rel="stylesheet" href="/app.css?v=20261001-14">
   </head>
   <body>
     <div class="app-shell">
@@ -115,6 +115,13 @@
           </details>
 
           <div class="filter-summary" id="filter-summary" aria-live="polite" data-i18n="status.checking">学校のページを確認しています。</div>
+          <p class="coverage-alert" id="coverage-alert" role="status" hidden></p>
+          <details class="coverage-details" id="coverage-details" hidden>
+            <summary><span data-i18n="coverage.title">収集範囲・確認状況</span><small id="coverage-count"></small></summary>
+            <p class="coverage-note" lang="ja">登録した公開ページの一部を収集しています。全件の取得は保証できません。保護者専用アプリ・ログイン内のお知らせは対象外です。</p>
+            <ul class="coverage-list" id="coverage-list"></ul>
+            <ul class="coverage-warnings" id="coverage-warnings" hidden></ul>
+          </details>
 
           <div class="content-grid">
             <div class="feed-column">
@@ -176,6 +183,6 @@
       </footer>
     </div>
     <script src="/policies.js?v=20261001-12" defer></script>
-    <script src="/app.js?v=20261001-12" defer></script>
+  <script src="/app.js?v=20261001-14" defer></script>
   </body>
 </html>

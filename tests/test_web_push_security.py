@@ -47,14 +47,17 @@ def subscription(name: str = "one", scalar: int = 1) -> dict:
     }
 
 
-def result(*ids: str, warnings=()):
+def result(*ids: str, warnings=(), source_id="school", coverage_kind="notices", refreshing=False,
+           extraction_status="ok"):
     notices = [
-        SimpleNamespace(id=value, to_summary=lambda value=value: {
+        SimpleNamespace(id=value, coverage_kind=coverage_kind, extraction_status=extraction_status,
+                        to_summary=lambda value=value: {
             "id": value, "title": "Private school notice", "source_name": "Private school",
-            "source_id": "school",
+            "source_id": source_id,
         }) for value in ids
     ]
-    return SimpleNamespace(notices=notices, warnings=warnings)
+    return SimpleNamespace(source=SimpleNamespace(id=source_id, coverage_kind=coverage_kind),
+                           notices=notices, warnings=warnings, refreshing=refreshing)
 
 
 class ValidationTests(unittest.TestCase):
@@ -459,6 +462,147 @@ class ScannerSecurityTests(unittest.TestCase):
         self.notifier._send.assert_not_called()
         self.scan("old", "recent", "new")
         self.assertEqual(self.notifier._send.call_count, 2)
+
+    def test_newly_covered_source_is_baselined_without_historical_blast(self):
+        self.subscribe()
+        self.scan("old")
+        self.catalog.get_many.return_value = [result("old"), result("archive", source_id="library")]
+        self.notifier.scan_subscriptions()
+        self.notifier._send.assert_not_called()
+        self.catalog.get_many.return_value = [result("old"), result("archive", "fresh", source_id="library")]
+        self.notifier.scan_subscriptions()
+        self.notifier._send.assert_called_once()
+
+    def test_facility_reference_changes_do_not_send_notifications(self):
+        self.subscribe()
+        self.scan("old")
+        original = result("old")
+        original.notices.append(SimpleNamespace(id="facility", coverage_kind="reference"))
+        self.catalog.get_many.return_value = [original]
+        self.notifier.scan_subscriptions()
+        self.notifier._send.assert_not_called()
+
+    def test_legacy_migration_preserves_pending_until_provider_acceptance(self):
+        self.subscribe()
+        record = self.notifier.store.subscriptions()[0]
+        self.notifier.store.save_delivery_state(record, {"known_ids": ["old", "pending"], "accepted_ids": ["old"]})
+        self.notifier._send.side_effect = RuntimeError("provider failure")
+        with patch.object(self.notifier, "_message", wraps=self.notifier._message) as message:
+            self.scan("old", "pending", "unseen-archive")
+            self.assertEqual([item["id"] for item in message.call_args.args[0]], ["pending"])
+        state = self.notifier.store.subscriptions()[0]["delivery_state"]
+        self.assertEqual(set(state["known_ids"]), {"old", "pending", "unseen-archive"})
+        self.assertEqual(set(state["accepted_ids"]), {"old", "unseen-archive"})
+        self.assertEqual(state["source_ids"], ["school"])
+        self.notifier._send.reset_mock(side_effect=True)
+        self.scan("old", "pending", "unseen-archive")
+        self.notifier._send.assert_called_once()
+        state = self.notifier.store.subscriptions()[0]["delivery_state"]
+        self.assertIn("pending", state["accepted_ids"])
+        self.notifier._send.reset_mock()
+        self.scan("old", "pending", "unseen-archive")
+        self.notifier._send.assert_not_called()
+
+    def test_migration_keeps_pending_from_failed_source_until_it_recovers(self):
+        self.subscribe()
+        record = self.notifier.store.subscriptions()[0]
+        self.notifier.store.save_delivery_state(record, {"known_ids": ["old", "library-pending"], "accepted_ids": ["old"]})
+        self.catalog.get_many.return_value = [result("old"), result("library-pending", source_id="library", warnings=("failed",))]
+        self.notifier.scan_subscriptions()
+        state = self.notifier.store.subscriptions()[0]["delivery_state"]
+        self.assertEqual(state["source_ids"], ["school"])
+        self.assertEqual(state["accepted_ids"], ["old"])
+        self.assertIn("library-pending", state["known_ids"])
+        self.notifier._send.assert_not_called()
+        self.catalog.get_many.return_value = [result("old"), result("library-pending", "library-archive", source_id="library")]
+        with patch.object(self.notifier, "_message", wraps=self.notifier._message) as message:
+            self.notifier.scan_subscriptions()
+            self.assertEqual([item["id"] for item in message.call_args.args[0]], ["library-pending"])
+        state = self.notifier.store.subscriptions()[0]["delivery_state"]
+        self.assertEqual(set(state["accepted_ids"]), {"old", "library-pending", "library-archive"})
+        self.assertEqual(state["source_ids"], ["library", "school"])
+
+    def test_failed_sources_do_not_block_healthy_sources_or_advance_their_ledger(self):
+        self.subscribe()
+        self.catalog.get_many.return_value = [result("old"), result("library-old", source_id="library")]
+        self.notifier.scan_subscriptions()
+        self.catalog.get_many.return_value = [
+            result("old", "new-z", "new-a"),
+            result("library-old", "library-new", source_id="library", warnings=("partial",)),
+        ]
+        with patch.object(self.notifier, "_message", wraps=self.notifier._message) as message:
+            self.notifier.scan_subscriptions()
+            self.assertEqual([item["id"] for item in message.call_args.args[0]], ["new-z", "new-a"])
+        state = self.notifier.store.subscriptions()[0]["delivery_state"]
+        self.assertNotIn("library-new", state["known_ids"])
+        self.assertNotIn("library-new", state["accepted_ids"])
+        self.assertIn("library-old", state["accepted_ids"])
+        self.notifier._send.reset_mock()
+        self.catalog.get_many.return_value[1] = result("library-old", "library-new", source_id="library")
+        with patch.object(self.notifier, "_message", wraps=self.notifier._message) as message:
+            self.notifier.scan_subscriptions()
+            self.assertEqual([item["id"] for item in message.call_args.args[0]], ["library-new"])
+        self.notifier._send.assert_called_once()
+
+    def test_failed_reference_sources_are_ignored_for_baseline_and_delivery(self):
+        self.subscribe()
+        reference = result("facility", source_id="facility", coverage_kind="reference", warnings=("failed",))
+        self.catalog.get_many.return_value = [reference]
+        self.notifier.scan_subscriptions()
+        self.assertIsNone(self.notifier.store.subscriptions()[0]["delivery_state"])
+        self.catalog.get_many.return_value = [result("old"), reference]
+        self.notifier.scan_subscriptions()
+        self.notifier._send.assert_not_called()
+        self.catalog.get_many.return_value = [result("old", "new"), reference]
+        self.notifier.scan_subscriptions()
+        self.notifier._send.assert_called_once()
+        state = self.notifier.store.subscriptions()[0]["delivery_state"]
+        self.assertEqual(state["source_ids"], ["school"])
+        self.assertEqual(set(state["known_ids"]), {"old", "new"})
+
+    def test_successful_empty_sources_baseline_before_their_first_notice(self):
+        self.subscribe()
+        self.catalog.get_many.return_value = [result(), result(source_id="library")]
+        self.notifier.scan_subscriptions()
+        state = self.notifier.store.subscriptions()[0]["delivery_state"]
+        self.assertEqual(state, {"known_ids": [], "accepted_ids": [], "source_ids": ["library", "school"]})
+        self.catalog.get_many.return_value = [result("first-school"), result("first-library", source_id="library")]
+        with patch.object(self.notifier, "_message", wraps=self.notifier._message) as message:
+            self.notifier.scan_subscriptions()
+            self.assertEqual([item["id"] for item in message.call_args.args[0]], ["first-school", "first-library"])
+        self.notifier._send.assert_called_once()
+
+    def test_refreshing_and_original_only_sources_fail_closed_without_warnings(self):
+        self.subscribe()
+        for change in ({"refreshing": True}, {"extraction_status": "original_only"}):
+            with self.subTest(change=change):
+                self.catalog.get_many.return_value = [result("partial", **change)]
+                self.notifier.scan_subscriptions()
+                self.assertIsNone(self.notifier.store.subscriptions()[0]["delivery_state"])
+        self.scan("old")
+        for index, change in enumerate(({"refreshing": True}, {"extraction_status": "original_only"})):
+            with self.subTest(change=change):
+                self.catalog.get_many.return_value = [result("old", f"healthy-{index}"), result("partial", source_id="library", **change)]
+                self.notifier.scan_subscriptions()
+                state = self.notifier.store.subscriptions()[0]["delivery_state"]
+                self.assertNotIn("library", state["source_ids"])
+                self.assertNotIn("partial", state["known_ids"])
+        self.assertEqual(self.notifier._send.call_count, 2)
+
+    def test_corrupt_delivery_ledgers_are_not_sent_or_rewritten(self):
+        self.subscribe()
+        base = {"known_ids": ["old"], "accepted_ids": ["old"], "source_ids": ["school"]}
+        malformed = [[], "invalid", {}, {**base, "known_ids": "old"}, {**base, "accepted_ids": None},
+                     {**base, "known_ids": [{}]}, {**base, "accepted_ids": ["unknown"]},
+                     {**base, "source_ids": "school"}, {**base, "source_ids": [{}]},
+                     {**base, "source_ids": [1]}, {**base, "source_ids": [""]}]
+        for state in malformed:
+            with self.subTest(state=state):
+                record = self.notifier.store.subscriptions()[0]
+                self.notifier.store.save_delivery_state(record, state)
+                self.scan("old", "new")
+                self.assertEqual(self.notifier.store.subscriptions()[0]["delivery_state"], state)
+                self.notifier._send.assert_not_called()
 
     def test_legacy_and_expired_consent_never_send_or_fetch(self):
         self.subscribe()
