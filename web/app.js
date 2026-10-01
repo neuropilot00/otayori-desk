@@ -4,7 +4,8 @@ const state = {
   payload: null,
   selectedId: null,
   loading: false,
-  reloadRequested: false,
+  requestVersion: 0,
+  requestController: null,
   feed: "notices",
   nearbyDistances: new Map(),
   push: { config: null, registration: null, subscribed: false },
@@ -430,29 +431,32 @@ async function selectNotice(id, { showInline = true } = {}) {
 }
 
 async function loadNotices(refresh = false) {
-  if (state.loading) {
-    state.reloadRequested = true;
-    return;
-  }
+  state.requestVersion += 1;
+  const requestVersion = state.requestVersion;
+  state.requestController?.abort();
+  const controller = new AbortController();
+  state.requestController = controller;
   setLoading(true);
   try {
     const query = queryString();
     const path = `/api/${refresh ? "refresh" : "notices"}${query ? `?${query}` : ""}`;
-    const payload = await api(path, refresh ? { method: "POST" } : {});
+    const options = refresh ? { method: "POST", signal: controller.signal } : { signal: controller.signal };
+    const payload = await api(path, options);
+    if (requestVersion !== state.requestVersion) return;
     renderNotices(payload);
     if (refresh && payload.refreshed) {
       $("filter-summary").setAttribute("data-refreshed-at", payload.scanned_at || "");
     }
   } catch (error) {
+    if (error?.name === "AbortError" || requestVersion !== state.requestVersion) return;
     $("notice-list").replaceChildren();
     $("empty-state").hidden = false;
     $("filter-summary").textContent = `${t("status.errorPrefix")}${error.message}`;
     renderPlaceholder();
   } finally {
-    setLoading(false);
-    if (state.reloadRequested) {
-      state.reloadRequested = false;
-      loadNotices(false);
+    if (requestVersion === state.requestVersion) {
+      state.requestController = null;
+      setLoading(false);
     }
   }
 }
@@ -461,7 +465,7 @@ function setupFeedTabs() {
   document.querySelectorAll(".feed-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       const nextFeed = tab.dataset.feed || "notices";
-      if (nextFeed === state.feed || state.loading) return;
+      if (nextFeed === state.feed) return;
       state.feed = nextFeed;
       state.selectedId = null;
       document.querySelectorAll(".feed-tab").forEach((item) => {
