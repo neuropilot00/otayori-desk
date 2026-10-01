@@ -611,11 +611,13 @@ class CatalogService:
         )
         warnings: list[str] = []
         candidates_by_url: dict[str, LinkCandidate] = {}
+        page_html_by_url: dict[str, str] = {}
         successful_pages = 0
         for page_url in source.page_urls:
             try:
                 page_html = fetcher.fetch_page(page_url)
                 successful_pages += 1
+                page_html_by_url[page_url] = page_html
                 if source.mode == "html_news":
                     page_candidates = self._parse_news_links(page_html, source, page_url)
                 elif source.mode == "html_page":
@@ -636,7 +638,10 @@ class CatalogService:
         if not candidates:
             warnings.append("関連するお知らせのリンクが見つかりませんでした。")
         with ThreadPoolExecutor(max_workers=min(4, max(1, len(candidates)))) as executor:
-            futures = {executor.submit(self._read_candidate, fetcher, source, candidate, grade): candidate for candidate in candidates}
+            futures = {
+                executor.submit(self._read_candidate, fetcher, source, candidate, grade, page_html_by_url.get(candidate.url)): candidate
+                for candidate in candidates
+            }
             for future in as_completed(futures):
                 candidate = futures[future]
                 try:
@@ -661,9 +666,10 @@ class CatalogService:
         source: SourceConfig,
         candidate: LinkCandidate,
         grade: str,
+        page_html: str | None = None,
     ) -> CatalogNotice | None:
         if source.mode in {"html_news", "html_page"}:
-            page_html = fetcher.fetch_page(candidate.url)
+            page_html = page_html or fetcher.fetch_page(candidate.url)
             parser = _ScopedNewsTextParser() if source.mode == "html_news" else _MainContentTextParser()
             parser.feed(page_html)
             parser.close()
