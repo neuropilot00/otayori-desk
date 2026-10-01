@@ -54,4 +54,12 @@ Local 390px browser: October grade notice and October 1 city/club notices visibl
 - The collector runs twice hourly, uploads successful sources independently, rejects incomplete source payloads and never handles parent/subscription data. The receiver checks credentials, origin, registry fingerprint, exact source hosts, document bounds and timestamps before writing. Replays cannot replace newer data; failed disk writes cannot be acknowledged as imported.
 - A scheduled source older than 90 minutes has a visible delay warning without changing its actual check time. Initial missing data is explicitly unavailable. The refresh button reads the newest scheduled snapshot rather than promising an immediate upstream fetch.
 
-Final deployment and authenticated sync results are appended after live verification.
+## Final live verification — 2026-10-01 21:53 JST
+
+- Application commit `113d5c4`; Railway deployment `6cb90d33-7b11-4cf0-a983-27f4df41105d`: `SUCCESS`.
+- GitHub Pilot checks run [36864321336](https://github.com/neuropilot00/otayori-desk/actions/runs/36864321336): success, 169 Python tests, 24 frontend tests, and dependency audit.
+- Authenticated scheduled sync run [36864524565](https://github.com/neuropilot00/otayori-desk/actions/runs/36864524565): success for all 15 configured city sources. Actual check times appeared in the production API; no city retrieval warnings remained. An unauthenticated POST to the import endpoint returned 401.
+- Production `GET /api/notices?source_id=all`: 36 source records, 290 entries including 12 facility references, 285 readable, zero empty sources, no work still refreshing. `complete:false` correctly remains for the five original-only PDFs (四小 September/July/June; 桜町 September/May).
+- 桜野 1年生 / 学校・生活: 75 entries including one reference, 74 notices; five October entries including the actual grade October issue and October 1 municipal/club information. Events: 32 entries, both feeds had no collection errors. Bounded-history warnings remain separate from these error results.
+- Production browser at 390px: document width 390px with no horizontal overflow; refresh font 14px; clicking the same notice changed `aria-expanded` from true back to false. Event cards displayed chronological October dates and separate publication/deadline labels. Coverage displayed source check times and scheduled collection cadence.
+- No real-device push was sent and no private parent-app access was attempted. This audit confirms the registered public-source workflow, not exhaustive or semantically perfect school-information coverage.
