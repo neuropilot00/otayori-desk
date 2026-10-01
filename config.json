@@ -7,5 +7,6 @@
   "max_document_bytes": 10000000,
   "line_max_chars": 4800,
   "pending_retry_max_hours": 23,
-  "web_cache_ttl_seconds": 300
+  "web_cache_ttl_seconds": 300,
+  "web_push_database_path": "state/push_subscriptions.sqlite3"
 }

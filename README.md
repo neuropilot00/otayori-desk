@@ -63,7 +63,8 @@ railway domain
 | 지역 | 학교급 | 학교 | 수집 방식 |
 | --- | --- | --- | --- |
 | 武蔵野市 | 小学校 | 桜野小学校 | PDF / 학년 추출 |
-| 武蔵野市 | 小学校 | 第一・大野田・境南・関前南小学校 | PDF |
+| 武蔵野市 | 小学校 | 桜野・第一・第二・第三・第四・第五・大野田・境南・本宿・千川・井之頭・関前南小学校 | PDF |
+| 武蔵野市 | 学童 | 市立12校区のこどもクラブ | 公式施設情報 |
 | 港区 | 小学校 | 芝浦小学校 | PDF |
 | 文京区 | 小学校 | 誠之小学校 | PDF |
 | 世田谷区 | 小学校 | 桜町小学校 | PDF |
@@ -71,7 +72,7 @@ railway domain
 | 世田谷区 | 中学校 | 瀬田中学校 | PDF |
 | 渋谷区 | 高等学校 | 青山高等学校 | HTML 뉴스 |
 
-도쿄 23구 전체를 한 번에 다 긁는 것으로 가장하지 않았습니다. 학교마다 CMS와 링크 형식이 달라, 실제 페이지·링크를 확인한 학교만 베타에 넣고 `sources.json`에 소스별 수집 방식을 명시합니다. 새 학교를 추가할 때는 `id`, `name`, `ward`, `level`, `page_url` 또는 여러 페이지를 묶는 `page_urls`, `mode`를 넣고, 필요하면 `include_patterns`와 `exclude_patterns`를 조정합니다. HTML 뉴스형 학교는 `mode: "html_news"`를 사용합니다. 한 학교의 학교 홈페이지·学年だより·행사 페이지가 서로 분리되어 있다면 `page_urls`에 함께 넣어 같은 학교 피드로 합칩니다.
+도쿄 23구 전체를 한 번에 다 긁는 것으로 가장하지 않았습니다. 학교마다 CMS와 링크 형식이 달라, 실제 페이지·링크를 확인한 학교만 베타에 넣고 `sources.json`에 소스별 수집 방식을 명시합니다. 현재는 지인이 많은 무사시노시를 우선해 시립 초등학교 12곳과 학동 12개 학구를 등록했습니다. 새 학교를 추가할 때는 `id`, `name`, `ward`, `level`, `page_url` 또는 여러 페이지를 묶는 `page_urls`, `mode`를 넣고, 필요하면 `include_patterns`와 `exclude_patterns`를 조정합니다. HTML 뉴스형 학교는 `mode: "html_news"`를 사용합니다. 한 학교의 학교 홈페이지·学年だより·행사 페이지가 서로 분리되어 있다면 `page_urls`에 함께 넣어 같은 학교 피드로 합칩니다. 장기적으로는 동일한 스키마를 자치체 단위의 전국 소스 등록·검증 파이프라인으로 확장합니다.
 
 웹 베타는 현재 메모리 캐시(5분)를 사용합니다. `今すぐ更新`은 캐시를 기다리지 않고 실제 공개 페이지를 다시 확인하며, 자동 확인은 캐시 만료 후 다음 접근 시 수행됩니다. 소스별 좌표는 지도/앱 전환용 메타데이터이며 위치 권한 없이는 읽지 않습니다.
 
@@ -81,7 +82,7 @@ railway domain
 
 학동 시설은 학교 공지처럼 매달 PDF가 올라오는 피드가 아니라 시설명·주소·운영 주체를 확인하는 정보입니다. 배포 서버의 공공 사이트 봇 차단으로 원문을 매 요청마다 읽을 수 없는 경우에도, 공식 원문 URL을 카드에 남기면서 마지막으로 확인한 공개 정보를 레지스트리에 보존해 선택과 기본 안내가 끊기지 않도록 했습니다. 이용시간·모집·휴일처럼 바뀔 수 있는 내용은 카드의 공식 링크에서 최종 확인합니다.
 
-Railway에서는 `WEB_PUSH_STATE_PATH`를 영속 볼륨 경로로 지정해야 구독이 재배포 뒤에도 유지됩니다. `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY`, `WEB_PUSH_CONTACT`를 설정하지 않으면 버튼은 준비중 상태로 표시되며, 원문 집계 자체는 계속 동작합니다.
+Railway에서는 `WEB_PUSH_DATABASE_PATH`를 영속 볼륨 경로로 지정하면 SQLite DB에 구독과 중복 발송 상태가 저장되어 재배포 뒤에도 유지됩니다. 다중 레플리카가 필요한 단계에서는 `WEB_PUSH_DATABASE_URL`에 관리형 PostgreSQL URL을 넣으면 같은 저장소 계약으로 전환됩니다. `WEB_PUSH_STATE_PATH`는 로컬 호환용 JSON fallback입니다. `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY`, `WEB_PUSH_CONTACT`를 설정하지 않으면 버튼은 준비중 상태로 표시되며, 원문 집계 자체는 계속 동작합니다.
 
 필수 운영 변수:
 
@@ -90,8 +91,18 @@ Railway에서는 `WEB_PUSH_STATE_PATH`를 영속 볼륨 경로로 지정해야 �
 | `WEB_PUSH_PUBLIC_KEY` | VAPID 공개키 |
 | `WEB_PUSH_PRIVATE_KEY` | VAPID 개인키. 저장소에 커밋하지 않음 |
 | `WEB_PUSH_CONTACT` | `mailto:owner@example.com` 형식의 운영 연락처 |
-| `WEB_PUSH_STATE_PATH` | 예: `/data/push_subscriptions.json` |
+| `WEB_PUSH_DATABASE_PATH` | 단일 인스턴스용 SQLite 예: `/data/push_subscriptions.sqlite3` |
+| `WEB_PUSH_DATABASE_URL` | 다중 인스턴스용 PostgreSQL URL. 비밀값으로만 설정 |
+| `WEB_PUSH_STATE_PATH` | JSON fallback 예: `state/push_subscriptions.json` |
 | `WEB_PUSH_SCAN_INTERVAL_SECONDS` | 새 소식 확인 주기. 기본 900초 |
+
+### 장기 확장과 보안 경계
+
+- `sources.json`은 코드에서 분리된 검토 가능한 공개 소스 레지스트리입니다. 학교·학동·시청 그룹, 학교급, 지역, 좌표, 공식 원문 링크를 같은 계약으로 저장하므로 모바일 앱이 HTML을 직접 긁지 않고 API를 사용할 수 있습니다.
+- 보호자별로 변하는 구독과 중복 발송 기준선은 DB에만 저장합니다. 구독 endpoint·키는 SQLite 파일 권한을 제한하고, PostgreSQL 전환 시에도 파라미터 바인딩으로만 저장합니다.
+- Push scope는 등록된 `source_id`, 학년, 피드, 발신처 그룹만 허용합니다. HTTPS endpoint, 본문 크기, 키 길이를 검증하고 공개 원문 페이지 외의 비공개 `保護者連絡帳` 자료는 수집하지 않습니다.
+- 공개 API는 비밀키를 반환하지 않으며 `Cache-Control: no-store`, CSP, `X-Content-Type-Options`, 제한된 Referrer 정책을 사용합니다. 새 학교 등록은 코드 수정 없이 레지스트리 검증 후 추가할 수 있습니다.
+- 웹앱은 PWA로 먼저 제공하고, 나중에 iOS/Android 앱은 같은 `/api/config`, `/api/notices`, `/api/push` 계약과 좌표·소스 ID를 사용합니다. 네이티브 알림 토큰만 별도 어댑터로 추가하면 됩니다.
 
 ## LINE 자동화
 

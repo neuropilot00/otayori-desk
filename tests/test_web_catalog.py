@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sakurano_line_notifier.fetcher import LinkCandidate
 from sakurano_line_notifier.web_catalog import CatalogService, _date_labels, _parse_source, load_sources
-from sakurano_line_notifier.web_push import PushSubscriptionError, normalize_push_scope
+from sakurano_line_notifier.web_push import PushSubscriptionError, SQLitePushSubscriptionStore, normalize_push_scope
 
 
 class SourceRegistryTests(unittest.TestCase):
@@ -19,6 +19,10 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertEqual(sources[0].default_grade, "1年生")
         self.assertGreaterEqual(len(sources[0].page_urls), 5)
         self.assertEqual(sources[1].grades, ("全学年",))
+        musashino_schools = {source.id for source in sources if source.ward == "武蔵野市" and source.source_group == "school" and source.level == "小学校"}
+        musashino_clubs = {source.id for source in sources if source.ward == "武蔵野市" and source.source_group == "after_school"}
+        self.assertEqual(len(musashino_schools), 12)
+        self.assertEqual(len(musashino_clubs), 12)
 
     def test_source_rejects_invalid_mode(self) -> None:
         with self.assertRaisesRegex(Exception, "mode"):
@@ -92,6 +96,21 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertEqual(scope["group"], "after_school")
         with self.assertRaises(PushSubscriptionError):
             normalize_push_scope({"source_id": "unknown"}, {"sakurano"})
+
+    def test_sqlite_push_store_round_trips_subscription_and_scope_state(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = SQLitePushSubscriptionStore(Path(directory) / "push.sqlite3")
+            subscription = {
+                "endpoint": "https://push.example.test/subscription/1",
+                "keys": {"p256dh": "public-key", "auth": "auth-key"},
+            }
+            scope = {"source_id": "sakurano", "grade": "1年生", "feed": "notices", "group": "school"}
+            self.assertEqual(store.upsert(subscription, scope), 1)
+            self.assertEqual(store.subscriptions()[0]["scope"], scope)
+            store.save_scope_state("scope-key", {"known_ids": ["a"], "notified_ids": ["a"], "updated_at": 1.0})
+            self.assertEqual(store.scope_state("scope-key")["known_ids"], ["a"])
+            store.remove(subscription["endpoint"])
+            self.assertEqual(store.subscriptions(), [])
 
 
 class NewsIndexTests(unittest.TestCase):
