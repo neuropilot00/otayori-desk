@@ -41,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
             from .web_server import run_server
 
             sources_path = args.sources or settings.config_path.parent / "sources.json"
-            run_server(CatalogService(settings, sources_path), host=args.host, port=args.port)
+            run_server(CatalogService(settings, sources_path), host=args.host, port=args.port, settings=settings)
             return 0
         notifier = SchoolNotifier(settings)
         dry_run = bool(getattr(args, "dry_run", False))

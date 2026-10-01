@@ -4,8 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f4f6fb">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="/manifest.webmanifest">
     <title>おたより desk — 学校のお知らせベータ</title>
-    <link rel="stylesheet" href="/app.css?v=20261001-5">
+    <link rel="stylesheet" href="/app.css?v=20261001-8">
   </head>
   <body>
     <div class="app-shell">
@@ -59,7 +62,11 @@
               <p class="eyebrow" data-i18n="workspace.eyebrow">うちの子の学校デスク</p>
               <h2 data-i18n="workspace.title">今日確認したいお知らせ</h2>
             </div>
-            <button class="refresh-button" id="refresh-button" type="button"><span aria-hidden="true">↻</span> <span data-i18n="actions.refresh">今すぐ更新</span></button>
+            <div class="workspace-actions">
+              <button class="notification-button" id="notification-button" type="button"><span class="button-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg></span><span data-i18n="actions.notifications">通知を受け取る</span></button>
+              <span class="notification-status" id="notification-status" aria-live="polite"></span>
+              <button class="refresh-button" id="refresh-button" type="button"><span aria-hidden="true">↻</span> <span data-i18n="actions.refresh">今すぐ更新</span></button>
+            </div>
           </div>
 
           <div class="feed-switcher" id="feed-switcher" role="tablist" aria-label="表示する情報">
@@ -78,6 +85,9 @@
               <label class="filter-field wide"><span data-i18n="filters.school">学校</span>
                 <select id="source-filter"><option value="all" data-i18n="filters.allSchools">すべての学校</option></select>
               </label>
+              <label class="filter-field"><span data-i18n="filters.group">発信元</span>
+                <select id="group-filter"><option value="all" data-i18n="filters.allGroups">すべての発信元</option><option value="school" data-i18n="groups.school">学校</option><option value="municipality" data-i18n="groups.municipality">武蔵野市・教育委員会／市役所</option><option value="after_school" data-i18n="groups.afterSchool">学童</option></select>
+              </label>
               <label class="filter-field"><span data-i18n="filters.level">学校種別</span>
                 <select id="level-filter"><option value="all" data-i18n="filters.all">すべて</option><option value="小学校" data-i18n="levels.elementary">小学校</option><option value="中学校" data-i18n="levels.middle">中学校</option><option value="高等学校" data-i18n="levels.high">高等学校</option></select>
               </label>
@@ -87,6 +97,11 @@
               <label class="filter-field"><span data-i18n="filters.grade">学年</span>
                 <select id="grade-filter"><option value="1年生" data-i18n="grades.one">1年生</option><option value="2年生" data-i18n="grades.two">2年生</option><option value="3年生" data-i18n="grades.three">3年生</option><option value="4年生" data-i18n="grades.four">4年生</option><option value="5年生" data-i18n="grades.five">5年生</option><option value="6年生" data-i18n="grades.six">6年生</option><option value="全学年" data-i18n="grades.all">全学年</option></select>
               </label>
+              <div class="filter-tools">
+                <button class="nearby-button" id="nearby-button" type="button"><span aria-hidden="true">⌖</span><span data-i18n="filters.nearby">近くの学校を探す</span></button>
+                <a class="map-link" id="map-link" href="#" target="_blank" rel="noreferrer noopener" hidden><span data-i18n="filters.map">地図で見る ↗</span></a>
+                <span class="nearby-status" id="nearby-status" aria-live="polite"></span>
+              </div>
             </div>
           </details>
 
@@ -134,6 +149,6 @@
         <span>公式の原文リンクも必ず確認してください。</span>
       </footer>
     </div>
-    <script src="/app.js?v=20261001-5" defer></script>
+    <script src="/app.js?v=20261001-8" defer></script>
   </body>
 </html>

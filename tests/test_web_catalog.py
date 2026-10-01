@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sakurano_line_notifier.fetcher import LinkCandidate
 from sakurano_line_notifier.web_catalog import CatalogService, _date_labels, _parse_source, load_sources
+from sakurano_line_notifier.web_push import PushSubscriptionError, normalize_push_scope
 
 
 class SourceRegistryTests(unittest.TestCase):
@@ -65,6 +66,32 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertEqual(source.source_group, "municipality")
         self.assertEqual(source.feed_group, "events")
         self.assertEqual(source.content_kind, "city_info")
+
+    def test_source_coordinates_are_optional_but_must_be_a_pair(self) -> None:
+        source = _parse_source(
+            {
+                "id": "mapped",
+                "name": "Mapped",
+                "ward": "武蔵野市",
+                "level": "小学校",
+                "page_url": "https://example.test/",
+                "latitude": 35.7,
+                "longitude": 139.5,
+            },
+            0,
+        )
+        self.assertEqual((source.latitude, source.longitude), (35.7, 139.5))
+        with self.assertRaisesRegex(Exception, "both latitude and longitude"):
+            _parse_source({**source.to_dict(), "longitude": None}, 0)
+
+    def test_push_scope_is_limited_to_known_public_filters(self) -> None:
+        scope = normalize_push_scope(
+            {"source_id": "sakurano", "grade": "1年生", "feed": "notices", "group": "after_school"},
+            {"sakurano"},
+        )
+        self.assertEqual(scope["group"], "after_school")
+        with self.assertRaises(PushSubscriptionError):
+            normalize_push_scope({"source_id": "unknown"}, {"sakurano"})
 
 
 class NewsIndexTests(unittest.TestCase):

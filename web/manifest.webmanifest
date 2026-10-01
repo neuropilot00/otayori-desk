@@ -1,0 +1,12 @@
+{
+  "name": "おたより desk",
+  "short_name": "おたより desk",
+  "description": "学校・自治体・学童のお知らせをまとめて確認する保護者向けベータ",
+  "lang": "ja",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f6fb",
+  "theme_color": "#f4f6fb",
+  "icons": [{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}]
+}

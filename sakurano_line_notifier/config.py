@@ -65,6 +65,11 @@ class Settings:
     line_to: str | None
     user_agent: str
     web_cache_ttl_seconds: float = 300.0
+    web_push_state_path: Path | None = None
+    web_push_public_key: str | None = None
+    web_push_private_key: str | None = None
+    web_push_contact: str | None = None
+    web_push_scan_interval_seconds: float = 900.0
 
     @classmethod
     def load(cls, config_path: Path, grade_override: str | None = None) -> "Settings":
@@ -102,6 +107,8 @@ class Settings:
         line_chars_value = os.getenv("LINE_MAX_CHARS") or raw.get("line_max_chars", 4_800)
         pending_hours_value = os.getenv("PENDING_RETRY_MAX_HOURS") or raw.get("pending_retry_max_hours", 23)
         web_cache_ttl_value = os.getenv("WEB_CACHE_TTL_SECONDS") or raw.get("web_cache_ttl_seconds", 300)
+        web_push_state_value = str(os.getenv("WEB_PUSH_STATE_PATH") or raw.get("web_push_state_path") or "state/push_subscriptions.json")
+        web_push_scan_interval_value = os.getenv("WEB_PUSH_SCAN_INTERVAL_SECONDS") or raw.get("web_push_scan_interval_seconds", 900)
 
         line_max_chars = _parse_positive_int(line_chars_value, "line_max_chars", minimum=100)
         if line_max_chars > 5_000:
@@ -124,4 +131,9 @@ class Settings:
             line_to=(os.getenv("LINE_TO") or "").strip() or None,
             user_agent="sakurano-line-notifier/1.0 (+GitHub Actions)",
             web_cache_ttl_seconds=_parse_positive_number(web_cache_ttl_value, "web_cache_ttl_seconds", minimum=30),
+            web_push_state_path=_resolve_path(root, web_push_state_value),
+            web_push_public_key=(os.getenv("WEB_PUSH_PUBLIC_KEY") or "").strip() or None,
+            web_push_private_key=(os.getenv("WEB_PUSH_PRIVATE_KEY") or "").strip() or None,
+            web_push_contact=(os.getenv("WEB_PUSH_CONTACT") or "").strip() or None,
+            web_push_scan_interval_seconds=_parse_positive_number(web_push_scan_interval_value, "web_push_scan_interval_seconds", minimum=60),
         )

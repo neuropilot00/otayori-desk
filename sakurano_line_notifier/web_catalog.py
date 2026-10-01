@@ -62,6 +62,8 @@ class SourceConfig:
     source_group: str = "school"
     feed_group: str = "notices"
     content_kind: str = "document"
+    latitude: float | None = None
+    longitude: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -85,6 +87,8 @@ class SourceConfig:
             "source_group_label": SOURCE_GROUP_LABELS.get(self.source_group, self.source_group),
             "feed_group": self.feed_group,
             "content_kind": self.content_kind,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
         }
 
 
@@ -345,6 +349,10 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
     if feed_group not in FEED_GROUPS:
         raise CatalogError(f"sources[{index}].feed_group must be notices or events")
     content_kind = str(raw.get("content_kind", "document")).strip() or "document"
+    latitude = _parse_coordinate(raw.get("latitude"), "latitude", index, -90.0, 90.0)
+    longitude = _parse_coordinate(raw.get("longitude"), "longitude", index, -180.0, 180.0)
+    if (latitude is None) != (longitude is None):
+        raise CatalogError(f"sources[{index}] must define both latitude and longitude")
     include_patterns = tuple(str(value) for value in raw.get("include_patterns", []))
     exclude_patterns = tuple(str(value) for value in raw.get("exclude_patterns", []))
     _compile_patterns(include_patterns, "include")
@@ -369,7 +377,21 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
         source_group=source_group,
         feed_group=feed_group,
         content_kind=content_kind,
+        latitude=latitude,
+        longitude=longitude,
     )
+
+
+def _parse_coordinate(value: object, name: str, index: int, minimum: float, maximum: float) -> float | None:
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise CatalogError(f"sources[{index}].{name} must be a number") from exc
+    if not minimum <= parsed <= maximum:
+        raise CatalogError(f"sources[{index}].{name} must be between {minimum} and {maximum}")
+    return parsed
 
 
 def load_sources(path: Path) -> list[SourceConfig]:
@@ -516,6 +538,7 @@ class CatalogService:
         level: str | None = None,
         ward: str | None = None,
         feed_group: str | None = None,
+        source_group: str | None = None,
         refresh: bool = False,
     ) -> list[CatalogResult]:
         selected = [source for source in self.sources if source.enabled]
@@ -533,6 +556,10 @@ class CatalogService:
             if feed_group not in FEED_GROUPS:
                 raise CatalogError(f"invalid feed group: {feed_group}")
             selected = [source for source in selected if source.feed_group == feed_group]
+        if source_group and source_group not in {"all", "*"}:
+            if source_group not in SOURCE_GROUP_LABELS:
+                raise CatalogError(f"invalid source group: {source_group}")
+            selected = [source for source in selected if source.source_group == source_group]
         if not selected:
             raise CatalogError("no enabled source matches the requested filters")
         if len(selected) == 1:
@@ -569,8 +596,9 @@ class CatalogService:
         level: str | None = None,
         ward: str | None = None,
         feed_group: str | None = None,
+        source_group: str | None = None,
     ) -> CatalogNotice | None:
-        for result in self.get_many(source_id=source_id, grade=grade, level=level, ward=ward, feed_group=feed_group):
+        for result in self.get_many(source_id=source_id, grade=grade, level=level, ward=ward, feed_group=feed_group, source_group=source_group):
             for notice in result.notices:
                 if notice.id == notice_id:
                     return notice
@@ -584,14 +612,19 @@ class CatalogService:
 
     @staticmethod
     def _effective_grade(source: SourceConfig, requested: str | None) -> str:
-        if source.level == "高等学校":
+        if source.level == "高等学校" or source.grades == ("全学年",):
             return "全学年"
         if requested is None or not str(requested).strip():
             return source.default_grade
         try:
-            return normalize_grade(requested)
+            normalized = normalize_grade(requested)
         except ValueError as exc:
             raise CatalogError(f"invalid grade: {requested}") from exc
+        if normalized not in source.grades:
+            if "全学年" in source.grades:
+                return "全学年"
+            raise CatalogError(f"grade {normalized} is not available for {source.name}")
+        return normalized
 
     @staticmethod
     def _matches(source: SourceConfig, candidate: LinkCandidate) -> bool:

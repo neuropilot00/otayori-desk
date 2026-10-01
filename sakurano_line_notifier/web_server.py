@@ -9,12 +9,14 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .web_catalog import CatalogError, CatalogService
+from .web_push import PushSubscriptionError, WebPushNotifier
 
 
 class _BetaHTTPServer(ThreadingHTTPServer):
-    def __init__(self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler], catalog: CatalogService) -> None:
+    def __init__(self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler], catalog: CatalogService, push_notifier: WebPushNotifier | None = None) -> None:
         super().__init__(address, handler)
         self.catalog = catalog
+        self.push_notifier = push_notifier
 
 
 class BetaRequestHandler(BaseHTTPRequestHandler):
@@ -38,6 +40,9 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/health":
                 self._send_json({"ok": True, "service": "school-news-beta"})
                 return
+            if parsed.path == "/api/push/config":
+                self._send_json(self.server.push_notifier.config() if self.server.push_notifier else {"enabled": False, "sending_enabled": False, "public_key": None})
+                return
             self._send_static(parsed.path)
         except CatalogError as exc:
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
@@ -46,6 +51,21 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         parsed = urlparse(self.path)
+        if parsed.path == "/api/push/subscribe":
+            try:
+                if not self.server.push_notifier:
+                    raise PushSubscriptionError("push is not configured")
+                payload = self._read_json_body()
+                subscription = payload.get("subscription")
+                if not isinstance(subscription, dict):
+                    raise PushSubscriptionError("subscription is required")
+                count = self.server.push_notifier.subscribe(subscription, payload.get("scope", {}))
+                self._send_json({"ok": True, "subscription_count": count})
+            except PushSubscriptionError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            except Exception as exc:
+                self._send_json({"error": f"unexpected server error: {exc.__class__.__name__}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
         if parsed.path != "/api/refresh":
             self._send_json({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
             return
@@ -64,6 +84,7 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             "description": "お子さまの学校のお知らせを迷わず確認する保護者向けベータ",
             "sources": sources,
             "source_count": len(sources),
+            "school_count": sum(1 for source in sources if source["source_group"] == "school"),
             "wards": sorted({source["ward"] for source in sources}),
             "levels": ["小学校", "中学校", "高等学校"],
             "grades": ["1年生", "2年生", "3年生", "4年生", "5年生", "6年生", "全学年"],
@@ -76,7 +97,8 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
         level = self._query_value(query, "level")
         ward = self._query_value(query, "ward")
         grade = self._query_value(query, "grade")
-        source_id = self._effective_source_id(query, level, ward)
+        source_group = self._query_value(query, "group") or self._query_value(query, "source_group")
+        source_id = self._effective_source_id(query, level, ward, source_group)
         feed_group = self._query_value(query, "feed")
         if grade is None and source_id not in {"all", "*"}:
             source = next((item for item in self.server.catalog.source_options() if item["id"] == source_id), None)
@@ -88,6 +110,7 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             level=level,
             ward=ward,
             feed_group=feed_group,
+            source_group=source_group,
             refresh=refresh,
         )
         notices = [notice.to_summary() for result in results for notice in result.notices]
@@ -99,7 +122,7 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             "notice_count": len(notices),
             "notices": notices,
             "warnings": warnings,
-            "filters": {"source_id": source_id or "all", "level": level or "all", "ward": ward or "all", "grade": grade or "default", "feed": feed_group or "all"},
+            "filters": {"source_id": source_id or "all", "level": level or "all", "ward": ward or "all", "grade": grade or "default", "feed": feed_group or "all", "group": source_group or "all"},
             "cache_ttl_seconds": self.server.catalog.cache_ttl_seconds,
             "refreshed": force_refresh or refresh,
         }
@@ -112,18 +135,34 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             level=self._query_value(query, "level"),
             ward=self._query_value(query, "ward"),
             feed_group=self._query_value(query, "feed"),
+            source_group=self._query_value(query, "group") or self._query_value(query, "source_group"),
         )
         if notice is None:
             self._send_json({"error": "notice not found"}, status=HTTPStatus.NOT_FOUND)
             return None
         return notice.to_detail()
 
+    def _read_json_body(self) -> dict[str, Any]:
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError as exc:
+            raise PushSubscriptionError("invalid request body") from exc
+        if length <= 0 or length > 100_000:
+            raise PushSubscriptionError("request body is missing or too large")
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise PushSubscriptionError("request body must be valid JSON") from exc
+        if not isinstance(payload, dict):
+            raise PushSubscriptionError("request body must be an object")
+        return payload
+
     @staticmethod
     def _query_value(query: dict[str, list[str]], key: str) -> str | None:
         values = query.get(key, [])
         return values[0].strip() if values and values[0].strip() else None
 
-    def _effective_source_id(self, query: dict[str, list[str]], level: str | None, ward: str | None) -> str:
+    def _effective_source_id(self, query: dict[str, list[str]], level: str | None, ward: str | None, source_group: str | None = None) -> str:
         requested = self._query_value(query, "source_id")
         if requested in {"all", "*"}:
             return "all"
@@ -137,6 +176,8 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
         if level and level not in {"all", "*", source["level"]}:
             return "all"
         if ward and ward not in {"all", "*", source["ward"]}:
+            return "all"
+        if source_group and source_group not in {"all", "*", source["source_group"]}:
             return "all"
         return source_id
 
@@ -193,12 +234,17 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
         return
 
 
-def run_server(catalog: CatalogService, host: str = "127.0.0.1", port: int = 8765) -> None:
-    server = _BetaHTTPServer((host, port), BetaRequestHandler, catalog)
+def run_server(catalog: CatalogService, host: str = "127.0.0.1", port: int = 8765, settings: Any | None = None) -> None:
+    push_notifier = WebPushNotifier(catalog, settings) if settings is not None else None
+    server = _BetaHTTPServer((host, port), BetaRequestHandler, catalog, push_notifier)
+    if push_notifier:
+        push_notifier.start()
     print(f"school-news-beta listening at http://{host}:{port}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        if push_notifier:
+            push_notifier.stop()
         server.server_close()
