@@ -34,8 +34,8 @@
       "name": "桜野こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
-      "page_url": "https://www.fukushijinzai.metro.tokyo.lg.jp/info/jigyou/1695889140083",
-      "mode": "html_page",
+      "page_url": "https://www.city.musashino.lg.jp/shisetsu_annai/kosodate/gakudo/1000414.html",
+      "mode": "static",
       "default_grade": "全学年",
       "grades": ["全学年"],
       "max_documents": 1,
@@ -47,15 +47,17 @@
       "feed_group": "notices",
       "content_kind": "after_school",
       "latitude": 35.7118,
-      "longitude": 139.5321
+      "longitude": 139.5321,
+      "static_title": "武蔵野市 桜野こどもクラブ",
+      "static_text": "武蔵野市 桜野こどもクラブ\n学童クラブ\n2026年09月29日 更新\n所在地\n180-0021\n東京都武蔵野市桜堤1丁目8番19号 桜野小学校校舎内\n電話番号 0422-53-3404\n実施事業 学童クラブ\n最新の利用時間・申込条件は武蔵野市公式の施設案内で確認してください。"
     },
     {
       "id": "musashino_dai1_gakudo",
       "name": "一小こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
-      "page_url": "https://www.fukushijinzai.metro.tokyo.lg.jp/info/jigyou/1695889140083",
-      "mode": "html_page",
+      "page_url": "https://www.city.musashino.lg.jp/shussan_kodomo_kyoiku/kodomo_kosodate/shisetsu/gakudoclub/1006775.html",
+      "mode": "static",
       "default_grade": "全学年",
       "grades": ["全学年"],
       "max_documents": 1,
@@ -67,15 +69,17 @@
       "feed_group": "notices",
       "content_kind": "after_school",
       "latitude": 35.7085,
-      "longitude": 139.5735
+      "longitude": 139.5735,
+      "static_title": "武蔵野市 一小こどもクラブ",
+      "static_text": "武蔵野市 一小こどもクラブ\n学童クラブ\n実施事業 学童クラブ\n所在地・利用時間・申込条件は武蔵野市公式の学童クラブ一覧で確認してください。"
     },
     {
       "id": "musashino_oonoden_gakudo",
       "name": "大野田こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
-      "page_url": "https://www.fukushijinzai.metro.tokyo.lg.jp/info/jigyou/1695889140083",
-      "mode": "html_page",
+      "page_url": "https://www.city.musashino.lg.jp/shussan_kodomo_kyoiku/kodomo_kosodate/shisetsu/gakudoclub/1006775.html",
+      "mode": "static",
       "default_grade": "全学年",
       "grades": ["全学年"],
       "max_documents": 1,
@@ -87,15 +91,17 @@
       "feed_group": "notices",
       "content_kind": "after_school",
       "latitude": 35.7159,
-      "longitude": 139.5670
+      "longitude": 139.5670,
+      "static_title": "武蔵野市 大野田こどもクラブ",
+      "static_text": "武蔵野市 大野田こどもクラブ\n学童クラブ\n実施事業 学童クラブ\n所在地・利用時間・申込条件は武蔵野市公式の学童クラブ一覧で確認してください。"
     },
     {
       "id": "musashino_kyounan_gakudo",
       "name": "境南こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
-      "page_url": "https://www.fukushijinzai.metro.tokyo.lg.jp/info/jigyou/1695889140083",
-      "mode": "html_page",
+      "page_url": "https://www.city.musashino.lg.jp/shussan_kodomo_kyoiku/kodomo_kosodate/shisetsu/gakudoclub/1006775.html",
+      "mode": "static",
       "default_grade": "全学年",
       "grades": ["全学年"],
       "max_documents": 1,
@@ -107,15 +113,17 @@
       "feed_group": "notices",
       "content_kind": "after_school",
       "latitude": 35.6971,
-      "longitude": 139.5445
+      "longitude": 139.5445,
+      "static_title": "武蔵野市 境南こどもクラブ",
+      "static_text": "武蔵野市 境南こどもクラブ\n学童クラブ\n実施事業 学童クラブ\n所在地・利用時間・申込条件は武蔵野市公式の学童クラブ一覧で確認してください。"
     },
     {
       "id": "musashino_sekimaeminami_gakudo",
       "name": "関前南こどもクラブ",
       "ward": "武蔵野市",
       "level": "小学校",
-      "page_url": "https://www.fukushijinzai.metro.tokyo.lg.jp/info/jigyou/1695889140083",
-      "mode": "html_page",
+      "page_url": "https://www.city.musashino.lg.jp/shussan_kodomo_kyoiku/kodomo_kosodate/shisetsu/gakudoclub/1006775.html",
+      "mode": "static",
       "default_grade": "全学年",
       "grades": ["全学年"],
       "max_documents": 1,
@@ -127,7 +135,9 @@
       "feed_group": "notices",
       "content_kind": "after_school",
       "latitude": 35.7135,
-      "longitude": 139.5498
+      "longitude": 139.5498,
+      "static_title": "武蔵野市 関前南こどもクラブ",
+      "static_text": "武蔵野市 関前南こどもクラブ\n学童クラブ\n実施事業 学童クラブ\n所在地・利用時間・申込条件は武蔵野市公式の学童クラブ一覧で確認してください。"
     },
     {
       "id": "sakurano_musashino_events",
@@ -135,11 +145,9 @@
       "ward": "武蔵野市",
       "level": "小学校",
       "page_urls": [
-        "https://www.city.musashino.lg.jp/kenko_fukushi/kenko_hoken/syokuiku/torikumi/1055016.html",
         "https://www.musashino.or.jp/yakatsu/1001959/1001960/1010072.html",
         "https://www.musashino.or.jp/yakatsu/1001959/1001960/1010071.html",
-        "https://www.city.musashino.lg.jp/heiwa_bunka_sports/sports_taikengakushu/event_sports/1039803.html",
-        "https://www.city.musashino.lg.jp/shussan_kodomo_kyoiku/kodomo_kosodate/kosodateshien/oen/1024225.html"
+        "https://www.musashino.or.jp/place/1001585/1009916.html"
       ],
       "mode": "html_page",
       "default_grade": "全学年",

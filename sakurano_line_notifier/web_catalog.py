@@ -64,6 +64,8 @@ class SourceConfig:
     content_kind: str = "document"
     latitude: float | None = None
     longitude: float | None = None
+    static_text: str = ""
+    static_title: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -324,8 +326,8 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
             page_urls.append(page_url)
     page_url = page_urls[0]
     mode = str(raw.get("mode", "pdf")).strip().lower()
-    if mode not in {"pdf", "html_news", "html_page"}:
-        raise CatalogError(f"sources[{index}].mode must be pdf, html_news, or html_page")
+    if mode not in {"pdf", "html_news", "html_page", "static"}:
+        raise CatalogError(f"sources[{index}].mode must be pdf, html_news, html_page, or static")
     raw_grades = raw.get("grades")
     if raw_grades is None:
         raw_grades = ["1年生", "2年生", "3年生", "4年生", "5年生", "6年生", "全学年"]
@@ -349,6 +351,10 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
     if feed_group not in FEED_GROUPS:
         raise CatalogError(f"sources[{index}].feed_group must be notices or events")
     content_kind = str(raw.get("content_kind", "document")).strip() or "document"
+    static_text = str(raw.get("static_text", "")).strip()
+    static_title = str(raw.get("static_title", "")).strip()
+    if mode == "static" and not static_text:
+        raise CatalogError(f"sources[{index}].static_text is required for static sources")
     latitude = _parse_coordinate(raw.get("latitude"), "latitude", index, -90.0, 90.0)
     longitude = _parse_coordinate(raw.get("longitude"), "longitude", index, -180.0, 180.0)
     if (latitude is None) != (longitude is None):
@@ -379,6 +385,8 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
         content_kind=content_kind,
         latitude=latitude,
         longitude=longitude,
+        static_text=static_text,
+        static_title=static_title,
     )
 
 
@@ -646,7 +654,12 @@ class CatalogService:
         candidates_by_url: dict[str, LinkCandidate] = {}
         page_html_by_url: dict[str, str] = {}
         successful_pages = 0
-        for page_url in source.page_urls:
+        if source.mode == "static":
+            successful_pages = 1
+            candidate = LinkCandidate(url=source.page_url, title=source.static_title or source.name, kind=source.content_kind)
+            if self._matches(source, candidate):
+                candidates_by_url[candidate.url] = candidate
+        for page_url in (source.page_urls if source.mode != "static" else ()):
             try:
                 page_html = fetcher.fetch_page(page_url)
                 successful_pages += 1
@@ -701,7 +714,12 @@ class CatalogService:
         grade: str,
         page_html: str | None = None,
     ) -> CatalogNotice | None:
-        if source.mode in {"html_news", "html_page"}:
+        if source.mode == "static":
+            text = source.static_text
+            content_hash = sha256_text(text)
+            kind = source.content_kind
+            candidate = LinkCandidate(url=candidate.url, title=source.static_title or candidate.title, kind=kind)
+        elif source.mode in {"html_news", "html_page"}:
             page_html = page_html or fetcher.fetch_page(candidate.url)
             parser = _ScopedNewsTextParser() if source.mode == "html_news" else _MainContentTextParser()
             parser.feed(page_html)
