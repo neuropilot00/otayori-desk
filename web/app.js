@@ -19,6 +19,7 @@ const REFRESH_POLL_TIMEOUT_MS = 60000;
 
 const I18N = {
   ja: {
+    "detail.attachments": "添付資料（公式原文）", "detail.attachmentsNote": "リンク先の添付本文は自動確認の対象外です。内容・変更は原文でご確認ください。",
     "status.refreshing": "最新の資料を確認中です…", "status.refreshTimeout": "確認に時間がかかっています。しばらくしてから更新してください。", "status.refreshError": "最新情報の再確認に失敗しました。表示中の情報と原文をご確認ください。",
     "extraction.unverified": "本文未確認", "coverage.readable": "本文", "coverage.documents": "資料",
     "common.event": "開催", "common.deadline": "締切", "events.upcoming": "開催・締切が近い順", "events.past": "終了したイベント", "reference.title": "施設案内（連絡帳ではありません）",
@@ -38,6 +39,7 @@ const I18N = {
     "kind.grade": "学年だより", "kind.school": "学校だより", "kind.afterSchool": "学童クラブ", "kind.city": "市・教育委員会", "kind.related": "関連資料", "category.supplies": "持ち物・準備", "category.submission": "提出物・締切", "category.events": "行事・予定", "category.parent": "保護者への連絡", "category.school": "学校全体への連絡", "category.study": "学習予定", "notifications.unavailable": "この公開ベータでは通知設定を準備中です。", "notifications.permission": "ブラウザの通知を許可してください。", "notifications.ready": "この条件の新着を通知します。", "notifications.enabled": "通知設定済み", "notifications.error": "通知を設定できませんでした。",
   },
   ko: {
+    "detail.attachments": "첨부자료 공식 원문", "detail.attachmentsNote": "첨부파일 본문은 자동 확인 대상이 아닙니다. 내용과 변경 사항은 원문에서 확인해 주세요.",
     "status.refreshing": "최신 자료를 확인 중입니다…", "status.refreshTimeout": "확인이 지연되고 있습니다. 잠시 후 다시 갱신해 주세요.", "status.refreshError": "최신 정보 재확인에 실패했습니다. 표시된 정보와 원문을 확인해 주세요.",
     "extraction.unverified": "본문 미확인", "coverage.readable": "본문", "coverage.documents": "자료",
     "common.event": "개최", "common.deadline": "마감", "events.upcoming": "개최·마감이 가까운 순", "events.past": "종료된 이벤트", "reference.title": "시설 안내 (가정 통신문이 아닙니다)",
@@ -50,6 +52,7 @@ const I18N = {
     "status.checking": "학교 페이지를 확인하고 있습니다.", "status.loading": "학교 페이지 확인 중…", "empty.title": "표시할 소식이 없습니다", "empty.body": "필터를 바꾸거나 다시 갱신해 주세요.", "detail.eyebrow": "원문 우선", "detail.placeholderTitle": "소식을 선택하면 원문이 여기에 표시됩니다.", "detail.placeholderBody": "요약뿐 아니라 분류된 내용과 일본어 원문·공식 링크를 함께 확인할 수 있습니다.", "detail.original": "일본어 원문", "detail.openOriginal": "공식 원문 열기 ↗", "detail.loading": "본문을 불러오는 중…", "detail.errorEyebrow": "상세 오류", "detail.errorTitle": "원문을 불러오지 못했습니다.", "card.original": "원문 ↗", "common.items": "건", "common.published": "게시", "common.unknownDate": "날짜 미확인", "common.latest": "최신", "archive.past": "지난 소식", "archive.none": "지난 소식이 없습니다", "summary.notices": "학교·생활 소식", "summary.events": "이벤트", "summary.noData": "표시할 정보가 없습니다", "summary.warning": " · 일부 자료 확인 경고 ", "summary.warningSuffix": "건", "summary.all": "전체", "summary.archiveSuffix": ".", "kind.grade": "학년 소식", "kind.school": "학교 소식", "kind.afterSchool": "학동 클럽", "kind.city": "시·교육위원회", "kind.related": "관련 자료", "category.supplies": "준비물", "category.submission": "제출물·마감", "category.events": "행사·일정", "category.parent": "보호자 안내", "category.school": "학교 전체 안내", "category.study": "학습 일정",
   },
   en: {
+    "detail.attachments": "Official attachments", "detail.attachmentsNote": "Attachment contents are not automatically verified. Check the originals for details and changes.",
     "status.refreshing": "Checking for the latest documents…", "status.refreshTimeout": "Checking is taking longer. Please refresh again later.", "status.refreshError": "Could not recheck the latest updates. Please review the displayed information and originals.",
     "extraction.unverified": "Text unverified", "coverage.readable": "Readable", "coverage.documents": "Documents",
     "common.event": "Event", "common.deadline": "Deadline", "events.upcoming": "Upcoming dates first", "events.past": "Past events", "reference.title": "Facility information (not school messages)",
@@ -57,6 +60,7 @@ const I18N = {
     "page.title": "Otayori desk — school updates beta", "brand.subtitle": "Tokyo school notes / beta", "status.public": "Checking public pages", "status.errorPrefix": "Could not check: ", "language.label": "Language", "theme.toggle": "Change theme", "detail.view": "View details", "hero.eyebrow": "Parent beta · public sources", "hero.title": "School updates,<br><em>all in one place</em>.", "hero.lede": "See school letters, grade updates, and event information together without searching each school page.", "hero.note": "Choose your child's school and grade to show only relevant updates.", "metrics.schools": "Registered schools", "metrics.schoolsFoot": "Elementary · middle · high", "metrics.notices": "Shown now", "metrics.noticesFoot": "Based on public originals", "metrics.wards": "Areas", "metrics.wardsFoot": "Registry ready for expansion", "metrics.scanned": "Last checked", "metrics.scannedFoot": "5-min cache · refresh anytime", "workspace.eyebrow": "My child's school desk", "workspace.title": "Updates to check today", "actions.refresh": "Refresh now", "actions.notifications": "Get notifications", "feeds.notices": "School & daily life", "feeds.events": "Events", "groups.school": "School", "groups.municipality": "Musashino City / Board of Education", "groups.afterSchool": "After-school care", "filters.change": "Change school / grade", "filters.school": "School", "filters.allSchools": "All schools", "filters.group": "Source", "filters.allGroups": "All sources", "filters.level": "School type", "filters.all": "All", "filters.ward": "Area", "filters.allAreas": "All areas", "filters.grade": "Grade", "filters.nearby": "Find nearby schools", "filters.map": "Open map ↗", "levels.elementary": "Elementary", "levels.middle": "Middle", "levels.high": "High school", "grades.one": "Grade 1", "grades.two": "Grade 2", "grades.three": "Grade 3", "grades.four": "Grade 4", "grades.five": "Grade 5", "grades.six": "Grade 6", "grades.all": "All grades", "status.checking": "Checking school pages.", "status.loading": "Checking school pages…", "empty.title": "No updates to show", "empty.body": "Change a filter or refresh again.", "detail.eyebrow": "Original first", "detail.placeholderTitle": "Select an update to see the original here.", "detail.placeholderBody": "Review categorized items together with the Japanese original and official link.", "detail.original": "Japanese original", "detail.openOriginal": "Open official original ↗", "detail.loading": "Loading the original…", "detail.errorEyebrow": "Detail error", "detail.errorTitle": "Could not load the original.", "card.original": "Original ↗", "common.items": " items", "common.published": "Published", "common.unknownDate": "Date unknown", "common.latest": "LATEST", "archive.past": "Past updates", "archive.none": "No past updates", "summary.notices": "School & daily life", "summary.events": "Events", "summary.noData": "No information to show", "summary.warning": " · source warnings: ", "summary.warningSuffix": "", "summary.all": "All ", "summary.archiveSuffix": ".", "kind.grade": "Grade letter", "kind.school": "School letter", "kind.afterSchool": "After-school care", "kind.city": "City / board", "kind.related": "Related", "category.supplies": "What to bring", "category.submission": "Submissions & deadlines", "category.events": "Events & schedule", "category.parent": "For parents", "category.school": "School-wide notice", "category.study": "Study schedule",
   },
   zh: {
+    "detail.attachments": "官方附件原文", "detail.attachmentsNote": "附件正文不在自动确认范围内，请查看原文中的内容及变更。",
     "status.refreshing": "正在确认最新资料…", "status.refreshTimeout": "确认耗时较长，请稍后再次刷新。", "status.refreshError": "无法再次确认最新信息，请查看当前信息和原文。",
     "extraction.unverified": "正文未确认", "coverage.readable": "正文", "coverage.documents": "资料",
     "common.event": "举办", "common.deadline": "截止", "events.upcoming": "按举办·截止日期由近到远", "events.past": "已结束的活动", "reference.title": "设施介绍（非家校通知）",
@@ -511,6 +515,7 @@ function renderPlaceholder() {
 
 function detailMarkup(notice) {
   const originalOnly = notice.extraction_status === "original_only";
+  const attachmentHtml = (notice.attachments || []).slice(0, 80).map((item) => officialLink(item.url, item.title, "detail-link")).filter(Boolean).map((link) => `<li>${link}</li>`).join("");
   const categoryHtml = Object.entries(originalOnly ? {} : notice.categories || {}).map(([name, items]) => {
     const list = items.slice(0, 8).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
     return `<section class="detail-section"><h4>${escapeHtml(localizeLabel(name))}</h4><ul>${list}</ul></section>`;
@@ -521,6 +526,7 @@ function detailMarkup(notice) {
     <p class="source-line notice-dates">${escapeHtml([notice.ward, ...((notice.source_group || "school") === "school" ? [localizeLabel(notice.level), localizeLabel(notice.grade)] : []), noticeDateText(notice)].filter(Boolean).join(" · "))}</p>
     ${isReference(notice) ? `<p class="reference-note">${escapeHtml(t("reference.title"))}</p>` : ""}
     ${officialLink(notice.url, t("detail.openOriginal"), "detail-link")}
+    ${attachmentHtml ? `<details class="detail-section attachment-links"><summary>${escapeHtml(t("detail.attachments"))}</summary><p class="extraction-note">${escapeHtml(t("detail.attachmentsNote"))}</p><ul>${attachmentHtml}</ul></details>` : ""}
     <p class="extraction-note" lang="ja">${originalOnly ? "本文は確認できていません。公式の原文を開いてご確認ください。自動抽出（OCRを含む）には読み違い・抜けが生じる場合があります。" : "表示本文は機械による抽出結果です（画像資料ではOCRを使う場合があります）。読み違い・抜けが生じる場合があるため、日付や持ち物は公式の原文でご確認ください。"}</p>
     ${categoryHtml}
     <section class="detail-section"><h4>${escapeHtml(t(originalOnly ? "extraction.unverified" : "detail.original"))}</h4><div class="original-copy" lang="ja">${escapeHtml(notice.text)}</div></section>

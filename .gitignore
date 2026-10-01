@@ -12,3 +12,4 @@ backups/
 state/*.sqlite3
 state/*.sqlite3-*
 state/source-audit*.json
+state/coverage-expansion*.json

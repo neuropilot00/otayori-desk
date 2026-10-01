@@ -13,7 +13,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from pypdf import PdfWriter
+from pypdf import PdfReader, PdfWriter
+from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject, NumberObject
 
 from sakurano_line_notifier import pdf_ocr
 from sakurano_line_notifier.extractor import ExtractionError, extract_document_text
@@ -30,24 +31,187 @@ def tsv(*words: tuple[str, float, int]) -> bytes:
     )).encode()
 
 
+def pdf_fixture(*pages: tuple[str, bytes | None]) -> bytes:
+    """Real native text, image XObjects, and blank pages; no OCR dependency."""
+    writer = PdfWriter()
+    for text, pixels in pages:
+        page = writer.add_blank_page(width=595, height=842)
+        resources = DictionaryObject()
+        commands = b""
+        if text:
+            font = DictionaryObject({
+                NameObject("/Type"): NameObject("/Font"),
+                NameObject("/Subtype"): NameObject("/Type1"),
+                NameObject("/BaseFont"): NameObject("/Helvetica"),
+            })
+            resources[NameObject("/Font")] = DictionaryObject({NameObject("/F1"): font})
+            commands += b"BT /F1 12 Tf 20 800 Td (" + text.encode("ascii") + b") Tj ET\n"
+        if pixels is not None:
+            scan = DecodedStreamObject()
+            scan.set_data(pixels)
+            scan.update({
+                NameObject("/Type"): NameObject("/XObject"),
+                NameObject("/Subtype"): NameObject("/Image"),
+                NameObject("/Width"): NumberObject(2),
+                NameObject("/Height"): NumberObject(2),
+                NameObject("/ColorSpace"): NameObject("/DeviceGray"),
+                NameObject("/BitsPerComponent"): NumberObject(8),
+            })
+            resources[NameObject("/XObject")] = DictionaryObject({NameObject("/Scan"): scan})
+            commands += b"q 500 0 0 700 20 20 cm /Scan Do Q\n"
+        page[NameObject("/Resources")] = resources
+        if commands:
+            content = DecodedStreamObject()
+            content.set_data(commands)
+            page[NameObject("/Contents")] = content
+    payload = io.BytesIO()
+    writer.write(payload)
+    return payload.getvalue()
+
+
 class PdfOcrTests(unittest.TestCase):
     def setUp(self):
         with pdf_ocr._cache_lock:
             pdf_ocr._cache.clear()
 
-    def test_image_only_pdf_uses_fallback_and_returns_body_without_prefix(self):
+    def test_hybrid_pdf_recovers_image_pages_in_order_without_replacing_native_text(self):
+        payload = pdf_fixture(("Native first", None), ("", b"\x00" * 4), ("Native third", None))
+        with patch.object(pdf_ocr, "_extract_uncached", return_value={2: GOOD_TEXT}) as work:
+            self.assertEqual(extract_document_text(payload), "Native first\n" + GOOD_TEXT + "\nNative third")
+        work.assert_called_once_with(payload, (2,))
+
+    def test_hybrid_ocr_failure_cannot_return_partial_native_text(self):
+        payload = pdf_fixture(("Native first", None), ("", b"\x00" * 4))
+        with patch.object(pdf_ocr, "_extract_uncached", side_effect=pdf_ocr.PdfOcrError("low OCR quality on page 2")):
+            with self.assertRaisesRegex(ExtractionError, "page 2"):
+                extract_document_text(payload)
+        self.assertEqual(len(pdf_ocr._cache), 0)
+
+    def test_native_and_truly_blank_pages_do_not_use_ocr(self):
+        payload = pdf_fixture(("Native first", None), ("", None), ("Native third", None))
+        with patch.object(pdf_ocr, "_extract_uncached") as work:
+            self.assertEqual(extract_document_text(payload), "Native first\n\nNative third")
+            with self.assertRaisesRegex(ExtractionError, "no readable"):
+                extract_document_text(pdf_fixture(("", None)))
+        work.assert_not_called()
+
+    def test_numeric_header_with_image_is_read_but_plain_number_is_native(self):
+        for label in ("2", "- 2 -", "2026/10/01"):
+            with self.subTest(label=label):
+                payload = pdf_fixture((label, b"\x00" * 4), ("3", None))
+                with patch.object(pdf_ocr, "_extract_uncached", return_value={1: GOOD_TEXT}) as work:
+                    self.assertEqual(extract_document_text(payload), GOOD_TEXT + "\n3")
+                work.assert_called_once_with(payload, (1,))
+
+    def test_numeric_header_ocr_failure_is_not_success(self):
+        payload = pdf_fixture(("1", b"\x00" * 4))
+        with patch.object(pdf_ocr, "_extract_uncached", side_effect=pdf_ocr.PdfOcrError("low OCR quality")):
+            with self.assertRaisesRegex(ExtractionError, "low OCR quality"):
+                extract_document_text(payload)
+
+    def test_native_body_with_illustration_is_retained_without_ocr(self):
+        payload = pdf_fixture(("Native body text", b"\x00" * 4))
+        with patch.object(pdf_ocr, "_extract_uncached") as work:
+            self.assertEqual(extract_document_text(payload), "Native body text\n")
+        work.assert_not_called()
+
+    def test_sparse_native_header_cannot_hide_dense_vector_body(self):
         writer = PdfWriter()
-        writer.add_blank_page(width=595, height=842)
+        writer.append(PdfReader(io.BytesIO(pdf_fixture(("Newsletter header", None)))))
+        page = writer.pages[0]
+        content = DecodedStreamObject()
+        content.set_data(page.get_contents().get_data() + b" 20 20 m " + b"21 21 22 22 23 23 c " * 1000 + b" f")
+        page[NameObject("/Contents")] = content
         payload = io.BytesIO()
         writer.write(payload)
-        with patch.object(pdf_ocr, "extract_pdf_ocr", return_value=GOOD_TEXT) as ocr:
+        with patch.object(pdf_ocr, "_extract_uncached", return_value={1: GOOD_TEXT}) as work:
             self.assertEqual(extract_document_text(payload.getvalue()), GOOD_TEXT)
-        ocr.assert_called_once_with(payload.getvalue(), page_count=1)
+        work.assert_called_once_with(payload.getvalue(), (1,))
+        with patch.object(pdf_ocr, "_extract_uncached", side_effect=pdf_ocr.PdfOcrError("low OCR quality")):
+            pdf_ocr._cache.clear()
+            with self.assertRaisesRegex(ExtractionError, "low OCR quality"):
+                extract_document_text(payload.getvalue())
+
+    def test_textless_vectors_inline_images_and_forms_cannot_be_skipped(self):
+        for kind in ("vectors", "inline", "form", "annotation"):
+            with self.subTest(kind=kind):
+                writer = PdfWriter()
+                writer.append(PdfReader(io.BytesIO(pdf_fixture(("Native first", None), ("", b"\x00" * 4)))))
+                page = writer.pages[1]
+                content = DecodedStreamObject()
+                if kind == "vectors":
+                    content.set_data(b"0 g 20 20 400 600 re f")
+                    page[NameObject("/Contents")] = content
+                elif kind == "inline":
+                    content.set_data(b"q 500 0 0 700 20 20 cm BI /W 2 /H 2 /BPC 8 /CS /G ID \x00\x00\x00\x00 EI Q")
+                    page[NameObject("/Contents")] = content
+                elif kind == "form":
+                    form = DecodedStreamObject()
+                    form.set_data(page.get_contents().get_data())
+                    form.update({NameObject("/Type"): NameObject("/XObject"),
+                                 NameObject("/Subtype"): NameObject("/Form"),
+                                 NameObject("/BBox"): page.mediabox,
+                                 NameObject("/Resources"): page["/Resources"]})
+                    page[NameObject("/Resources")] = DictionaryObject({NameObject("/XObject"): DictionaryObject({NameObject("/Form"): form})})
+                    content.set_data(b"q /Form Do Q")
+                    page[NameObject("/Contents")] = content
+                else:
+                    from pypdf.annotations import FreeText
+                    del page["/Contents"]
+                    writer.add_annotation(1, FreeText(text="Image notice", rect=(20, 20, 500, 700)))
+                payload = io.BytesIO()
+                writer.write(payload)
+                with patch.object(pdf_ocr, "_extract_uncached", return_value={2: GOOD_TEXT}) as work:
+                    self.assertEqual(extract_document_text(payload.getvalue()), "Native first\n" + GOOD_TEXT)
+                work.assert_called_once_with(payload.getvalue(), (2,))
+
+    def test_pdf_byte_limit_precedes_native_parsing(self):
+        with patch.object(pdf_ocr, "MAX_PDF_BYTES", 10), patch("pypdf.PdfReader") as reader:
+            with self.assertRaisesRegex(ExtractionError, "byte safety limit"):
+                extract_document_text(b"%PDF" + b"x" * 7)
+        reader.assert_not_called()
+
+    def test_large_native_document_can_ocr_one_page_with_same_six_page_cap(self):
+        payload = pdf_fixture(*([("Native body", None)] * 49), ("", b"\x00" * 4))
+        with patch.object(pdf_ocr, "_extract_uncached", return_value={50: GOOD_TEXT}) as work:
+            self.assertEqual(extract_document_text(payload), "Native body\n" * 49 + GOOD_TEXT)
+        work.assert_called_once_with(payload, (50,))
+        payload = pdf_fixture(("Native body", None), *([("", b"\x00" * 4)] * 7))
+        with patch.object(pdf_ocr, "_extract_uncached") as work:
+            with self.assertRaisesRegex(ExtractionError, "OCR supports 1-6 pages; got 7"):
+                extract_document_text(payload)
+        work.assert_not_called()
+
+    def test_six_scans_and_structural_blanks_fit_ocr_cap(self):
+        payload = pdf_fixture(*([("", b"\x00" * 4)] * 6), *([("", None)] * 2))
+        with patch.object(pdf_ocr, "_extract_uncached", return_value={n: GOOD_TEXT for n in range(1, 7)}) as work:
+            self.assertEqual(extract_document_text(payload), "\n".join([GOOD_TEXT] * 6 + ["", ""]))
+        work.assert_called_once_with(payload, (1, 2, 3, 4, 5, 6))
+
+    def test_merged_native_and_ocr_text_obey_total_character_limit(self):
+        payload = pdf_fixture(("a" * 60, None), ("", b"\x00" * 4))
+        with patch.object(pdf_ocr, "MAX_TEXT_CHARACTERS", 100), patch.object(
+            pdf_ocr, "_extract_uncached", return_value={2: GOOD_TEXT}
+        ), self.assertRaisesRegex(ExtractionError, "text exceeds safety limit"):
+            extract_document_text(payload)
+
+    def test_incomplete_page_result_is_rejected_and_not_cached(self):
+        payload = pdf_fixture(("Native body", None), ("", b"\x00" * 4), ("", b"\x00" * 4))
+        with patch.object(pdf_ocr, "_extract_uncached", return_value={2: GOOD_TEXT}):
+            with self.assertRaisesRegex(ExtractionError, "incomplete page selection"):
+                extract_document_text(payload)
+        self.assertEqual(len(pdf_ocr._cache), 0)
+
+    def test_image_only_pdf_uses_fallback_and_returns_body_without_prefix(self):
+        payload = pdf_fixture(("", b"\x00" * 4))
+        with patch.object(pdf_ocr, "extract_pdf_ocr_pages", return_value={1: GOOD_TEXT}) as ocr:
+            self.assertEqual(extract_document_text(payload), GOOD_TEXT)
+        ocr.assert_called_once_with(payload, page_count=1, page_numbers=(1,))
 
     def test_successful_text_pdf_and_html_never_use_ocr(self):
         page = Mock()
         page.extract_text.return_value = "持ち物：水筒"
-        with patch.object(pdf_ocr, "extract_pdf_ocr") as ocr, patch(
+        with patch.object(pdf_ocr, "extract_pdf_ocr_pages") as ocr, patch(
             "pypdf.PdfReader", return_value=Mock(is_encrypted=False, pages=[page])
         ):
             self.assertEqual(extract_document_text(b"%PDF-test"), "持ち物：水筒")
@@ -61,22 +225,21 @@ class PdfOcrTests(unittest.TestCase):
             Mock(is_encrypted=False, pages=[Mock(extract_text=Mock(return_value="a" * 200_001))]),
         ):
             with self.subTest(reader=reader), patch("pypdf.PdfReader", return_value=reader), patch.object(
-                pdf_ocr, "extract_pdf_ocr"
+                pdf_ocr, "extract_pdf_ocr_pages"
             ) as ocr, self.assertRaises(ExtractionError):
                 extract_document_text(b"%PDF-test")
             ocr.assert_not_called()
 
     def test_corrupt_pdf_does_not_trigger_ocr(self):
-        with patch.object(pdf_ocr, "extract_pdf_ocr") as ocr, self.assertRaises(ExtractionError):
+        with patch.object(pdf_ocr, "extract_pdf_ocr_pages") as ocr, self.assertRaises(ExtractionError):
             extract_document_text(b"%PDF-broken")
         ocr.assert_not_called()
 
     def test_ocr_failure_is_existing_extraction_error_with_reason(self):
-        reader = Mock(is_encrypted=False, pages=[Mock(extract_text=Mock(return_value=""))])
-        with patch("pypdf.PdfReader", return_value=reader), patch.object(
-            pdf_ocr, "extract_pdf_ocr", side_effect=pdf_ocr.PdfOcrError("low OCR quality")
+        with patch.object(
+            pdf_ocr, "extract_pdf_ocr_pages", side_effect=pdf_ocr.PdfOcrError("low OCR quality")
         ), self.assertRaisesRegex(ExtractionError, "low OCR quality"):
-            extract_document_text(b"%PDF-test")
+            extract_document_text(pdf_fixture(("", b"\x00" * 4)))
 
     def test_ocr_byte_and_page_caps_before_subprocess(self):
         with patch.object(pdf_ocr, "_extract_uncached") as work, patch.object(pdf_ocr, "MAX_PDF_BYTES", 20):
@@ -85,8 +248,29 @@ class PdfOcrTests(unittest.TestCase):
                     pdf_ocr.extract_pdf_ocr(payload, page_count=pages)
             work.assert_not_called()
 
+    def test_selected_page_bounds_are_checked_before_subprocess(self):
+        with patch.object(pdf_ocr, "_extract_uncached") as work:
+            for pages, numbers in ((0, (1,)), (51, (1,)), (2, (0,)), (2, (-1,)), (2, (3,)),
+                                   (2, (1, 1)), (2, (True,)), (2, (1.5,)), (2, ()), (8, tuple(range(1, 8)))):
+                with self.subTest(pages=pages, numbers=numbers), self.assertRaises(pdf_ocr.PdfOcrError):
+                    pdf_ocr.extract_pdf_ocr_pages(b"pdf", page_count=pages, page_numbers=numbers)
+        work.assert_not_called()
+
+    def test_page_selection_is_in_cache_key_and_cached_results_are_not_mutable(self):
+        def work(payload, numbers):
+            return {number: GOOD_TEXT + str(number) for number in numbers}
+
+        with patch.object(pdf_ocr, "_extract_uncached", side_effect=work) as run:
+            for numbers in ((2,), (1,), (2,), (1, 2), (2, 1)):
+                pages = pdf_ocr.extract_pdf_ocr_pages(b"same", page_count=2, page_numbers=numbers)
+                self.assertEqual(pages, {n: GOOD_TEXT + str(n) for n in numbers})
+                pages.clear()
+            self.assertEqual(run.call_count, 3)
+            pdf_ocr.extract_pdf_ocr_pages(b"same", page_count=3, page_numbers=(2,))
+            self.assertEqual(run.call_count, 4)
+
     def test_content_cache_avoids_repeat_work(self):
-        with patch.object(pdf_ocr, "_extract_uncached", return_value=GOOD_TEXT) as work:
+        with patch.object(pdf_ocr, "_extract_uncached", return_value={1: GOOD_TEXT}) as work:
             self.assertEqual(pdf_ocr.extract_pdf_ocr(b"same bytes", page_count=1), GOOD_TEXT)
             self.assertEqual(pdf_ocr.extract_pdf_ocr(b"same bytes", page_count=1), GOOD_TEXT)
             work.assert_called_once()
@@ -95,7 +279,7 @@ class PdfOcrTests(unittest.TestCase):
 
     def test_cache_is_bounded_and_uses_lru_eviction(self):
         with patch.object(pdf_ocr, "CACHE_ENTRIES", 2), patch.object(
-            pdf_ocr, "_extract_uncached", return_value=GOOD_TEXT
+            pdf_ocr, "_extract_uncached", return_value={1: GOOD_TEXT}
         ) as work:
             for payload in (b"a", b"b", b"a", b"c", b"b"):
                 pdf_ocr.extract_pdf_ocr(payload, page_count=1)
@@ -103,7 +287,7 @@ class PdfOcrTests(unittest.TestCase):
             self.assertEqual(len(pdf_ocr._cache), 2)
 
     def test_errors_are_not_cached_and_slot_is_released(self):
-        with patch.object(pdf_ocr, "_extract_uncached", side_effect=[pdf_ocr.PdfOcrError("bad"), GOOD_TEXT]) as work:
+        with patch.object(pdf_ocr, "_extract_uncached", side_effect=[pdf_ocr.PdfOcrError("bad"), {1: GOOD_TEXT}]) as work:
             with self.assertRaises(pdf_ocr.PdfOcrError):
                 pdf_ocr.extract_pdf_ocr(b"retry", page_count=1)
             self.assertEqual(pdf_ocr.extract_pdf_ocr(b"retry", page_count=1), GOOD_TEXT)
@@ -115,7 +299,7 @@ class PdfOcrTests(unittest.TestCase):
         def work(*args):
             entered.set()
             self.assertTrue(finish.wait(2))
-            return GOOD_TEXT
+            return {1: GOOD_TEXT}
 
         with patch.object(pdf_ocr, "_extract_uncached", side_effect=work) as run, ThreadPoolExecutor(2) as executor:
             first = executor.submit(pdf_ocr.extract_pdf_ocr, b"shared", page_count=1)
@@ -132,7 +316,7 @@ class PdfOcrTests(unittest.TestCase):
         def work(*args):
             entered.set()
             self.assertTrue(finish.wait(2))
-            return GOOD_TEXT
+            return {1: GOOD_TEXT}
 
         with patch.object(pdf_ocr, "QUEUE_TIMEOUT_SECONDS", 0.02), patch.object(
             pdf_ocr, "_extract_uncached", side_effect=work
@@ -159,12 +343,7 @@ class PdfOcrTests(unittest.TestCase):
         }, 0)
         documents = {}
         for number in range(4):
-            writer = PdfWriter()
-            writer.add_blank_page(width=595, height=842)
-            writer.add_metadata({"/Title": str(number)})
-            payload = io.BytesIO()
-            writer.write(payload)
-            documents[f"https://example.test/{number}.pdf"] = payload.getvalue()
+            documents[f"https://example.test/{number}.pdf"] = pdf_fixture(("", bytes([number]) * 4))
         barrier = threading.Barrier(4)
 
         def fetch(url):
@@ -173,7 +352,7 @@ class PdfOcrTests(unittest.TestCase):
 
         def slow_ocr(*args):
             time.sleep(0.04)
-            return GOOD_TEXT
+            return {1: GOOD_TEXT}
 
         service = CatalogService.__new__(CatalogService)
         service.settings = SimpleNamespace(request_timeout_seconds=5, max_document_bytes=10_000_000, user_agent="ocr-test")
@@ -189,6 +368,31 @@ class PdfOcrTests(unittest.TestCase):
         self.assertEqual(len(result.notices), 4)
         self.assertEqual(result.warnings, ())
         self.assertEqual(run.call_count, 4)
+
+    def test_catalog_retains_failed_hybrid_as_original_only(self):
+        from sakurano_line_notifier.fetcher import FetchedDocument
+        from sakurano_line_notifier.web_catalog import CatalogService, _parse_source
+
+        source = _parse_source({
+            "id": "hybrid", "name": "Hybrid school", "ward": "武蔵野市", "level": "小学校",
+            "page_url": "https://example.test/letters/", "mode": "pdf", "max_documents": 4,
+        }, 0)
+        url = "https://example.test/hybrid.pdf"
+        payload = pdf_fixture(("Native first", None), ("", b"\x00" * 4))
+        service = CatalogService.__new__(CatalogService)
+        service.settings = SimpleNamespace(request_timeout_seconds=5, max_document_bytes=10_000_000, user_agent="ocr-test")
+        fetcher = Mock()
+        fetcher.fetch_page.return_value = f'<a href="{url}">学校だより</a>'
+        fetcher.fetch_document.return_value = FetchedDocument(url, payload, "application/pdf", None, None)
+        with patch("sakurano_line_notifier.web_catalog.HttpFetcher", return_value=fetcher), patch.object(
+            pdf_ocr, "_extract_uncached", side_effect=pdf_ocr.PdfOcrError("low OCR quality on page 2")
+        ):
+            result = service._scan_source(source, "全学年")
+        self.assertEqual(len(result.notices), 1)
+        self.assertEqual(result.notices[0].url, url)
+        self.assertEqual(result.notices[0].extraction_status, "original_only")
+        self.assertEqual(result.coverage()["readable_count"], 0)
+        self.assertIn("page 2", " ".join(result.warnings))
 
     def test_missing_tools_and_language_fail_clearly(self):
         with patch.object(pdf_ocr.shutil, "which", return_value=None), self.assertRaisesRegex(
@@ -234,7 +438,9 @@ class PdfOcrTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             image = Path(directory) / "page.pgm"
             image.write_bytes(b"P5\n2 2\n255\n" + b"\xff" * 4)
-            pdf_ocr._check_image(image)
+            self.assertTrue(pdf_ocr._check_image(image))
+            image.write_bytes(b"P5\n2 2\n255\n" + b"\xff" * 3 + b"\xfe")
+            self.assertFalse(pdf_ocr._check_image(image))
             for content in (b"bad", b"P5\n3201 1\n255\n", b"P5\n0 2\n255\n", b"P5\n2 2\n255\n\xff"):
                 image.write_bytes(content)
                 with self.subTest(content=content), self.assertRaises(pdf_ocr.PdfOcrError):
@@ -251,7 +457,7 @@ class PdfOcrTests(unittest.TestCase):
             if "--list-langs" in command:
                 return b"jpn\n"
             if command[0].endswith("pdftoppm"):
-                Path(command[-1]).with_suffix(".pgm").write_bytes(b"P5\n2 2\n255\n" + b"\xff" * 4)
+                Path(command[-1]).with_suffix(".pgm").write_bytes(b"P5\n2 2\n255\n" + b"\x00" * 4)
                 return b""
             return tsv((GOOD_TEXT, 95, 1))
 
@@ -267,6 +473,71 @@ class PdfOcrTests(unittest.TestCase):
             self.assertEqual(command[command.index("-scale-to") + 1], "3200")
             self.assertFalse(Path(command[-2]).exists())
 
+    def test_selected_pages_share_one_deadline_and_white_raster_skips_recognition(self):
+        calls = []
+        locations = []
+
+        def run(command, deadline, stage):
+            calls.append((command, deadline))
+            if "--list-langs" in command:
+                return b"jpn\n"
+            if command[0].endswith("pdftoppm"):
+                image = Path(command[-1]).with_suffix(".pgm")
+                locations.append(image)
+                # Page 4 is provably blank; page 7 must go through quality checks.
+                pixels = b"\xff" * 4 if command[2] == "4" else b"\x00" * 4
+                image.write_bytes(b"P5\n2 2\n255\n" + pixels)
+                return b""
+            return tsv((GOOD_TEXT, 95, 1))
+
+        with patch.object(pdf_ocr.shutil, "which", side_effect=lambda tool: "/usr/bin/" + tool), patch.object(
+            pdf_ocr, "_run", side_effect=run
+        ):
+            pages = pdf_ocr.extract_pdf_ocr_pages(b"hybrid", page_count=8, page_numbers=(4, 7))
+        self.assertEqual(pages, {4: "", 7: GOOD_TEXT})
+        self.assertEqual(len({deadline for _, deadline in calls}), 1)
+        renders = [cmd for cmd, _ in calls if cmd[0].endswith("pdftoppm")]
+        self.assertEqual([cmd[1:5] for cmd in renders], [["-f", "4", "-l", "4"], ["-f", "7", "-l", "7"]])
+        self.assertEqual(len([cmd for cmd, _ in calls if "--psm" in cmd]), 1)
+        self.assertTrue(all(not path.exists() for path in locations))
+
+    def test_selected_ocr_failure_reports_original_page_and_rejects_all_results(self):
+        def run(command, deadline, stage):
+            if "--list-langs" in command:
+                return b"jpn\n"
+            if command[0].endswith("pdftoppm"):
+                Path(command[-1]).with_suffix(".pgm").write_bytes(b"P5\n2 2\n255\n" + b"\x00" * 4)
+                return b""
+            return tsv((GOOD_TEXT, 95 if stage.endswith("2") else 10, 1))
+
+        with patch.object(pdf_ocr.shutil, "which", side_effect=lambda tool: "/usr/bin/" + tool), patch.object(
+            pdf_ocr, "_run", side_effect=run
+        ), self.assertRaisesRegex(pdf_ocr.PdfOcrError, "low OCR quality on page 5"):
+            pdf_ocr.extract_pdf_ocr_pages(b"hybrid", page_count=8, page_numbers=(2, 5))
+        self.assertEqual(len(pdf_ocr._cache), 0)
+
+    def test_ocr_combined_text_and_final_document_deadline_are_bounded(self):
+        def run(command, deadline, stage):
+            if "--list-langs" in command:
+                return b"jpn\n"
+            if command[0].endswith("pdftoppm"):
+                Path(command[-1]).with_suffix(".pgm").write_bytes(b"P5\n2 2\n255\n" + b"\x00" * 4)
+                return b""
+            return tsv((GOOD_TEXT, 95, 1))
+
+        with patch.object(pdf_ocr.shutil, "which", side_effect=lambda tool: "/usr/bin/" + tool), patch.object(
+            pdf_ocr, "_run", side_effect=run
+        ):
+            with patch.object(pdf_ocr, "MAX_TEXT_CHARACTERS", len(GOOD_TEXT) * 2), self.assertRaisesRegex(
+                pdf_ocr.PdfOcrError, "text exceeds safety limit"
+            ):
+                pdf_ocr.extract_pdf_ocr_pages(b"long", page_count=6, page_numbers=(2, 5))
+            with patch.object(pdf_ocr.time, "monotonic", side_effect=[100, 221]), self.assertRaisesRegex(
+                pdf_ocr.PdfOcrError, "document time limit"
+            ):
+                pdf_ocr.extract_pdf_ocr_pages(b"slow", page_count=6, page_numbers=(2, 5))
+        self.assertEqual(len(pdf_ocr._cache), 0)
+
     def test_partial_document_is_rejected_not_cached_and_temp_files_removed(self):
         locations = []
 
@@ -276,7 +547,7 @@ class PdfOcrTests(unittest.TestCase):
             if command[0].endswith("pdftoppm"):
                 image = Path(command[-1]).with_suffix(".pgm")
                 locations.append(image)
-                image.write_bytes(b"P5\n2 2\n255\n" + b"\xff" * 4)
+                image.write_bytes(b"P5\n2 2\n255\n" + b"\x00" * 4)
                 return b""
             return tsv((GOOD_TEXT, 95 if len(locations) == 1 else 10, 1))
 

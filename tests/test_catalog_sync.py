@@ -91,6 +91,15 @@ class SnapshotTests(unittest.TestCase):
         accept_snapshot(self.catalog, payload)
         self.assertEqual(self.catalog.get_source("city").notices[0].source_name, "市役所")
 
+    def test_attachments_survive_sync_but_external_and_script_urls_are_rejected(self):
+        payload = snapshot_payload(replace(self.result, notices=(replace(self.notice, attachments=(("申込書", "https://city.example/form.pdf"),)),)))
+        self.assertTrue(accept_snapshot(self.catalog, payload))
+        self.assertEqual(self.catalog._cache_store.load(self.source, "全学年").notices[0].attachments, (("申込書", "https://city.example/form.pdf"),))
+        for url in ("https://evil.example/a.pdf", "javascript:alert(1)", "https://city.example@evil.example/a.pdf"):
+            payload["notices"][0]["attachments"][0]["url"] = url
+            with self.assertRaises(CatalogError):
+                accept_snapshot(self.catalog, payload)
+
     def test_storage_failure_cannot_acknowledge_an_import(self):
         with patch.object(self.catalog._cache_store, "save"), self.assertRaises(RuntimeError):
             accept_snapshot(self.catalog, snapshot_payload(self.result))

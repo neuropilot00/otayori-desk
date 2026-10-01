@@ -4,30 +4,35 @@
   "sources": [
     {
       "id": "sakurano",
+      "notification_revision": "coverage-20261001b",
       "name": "桜野小学校",
       "ward": "武蔵野市",
       "level": "小学校",
       "page_url": "https://sakurano-e.musashino-city.ed.jp/modules/hp_jpage34/",
       "page_urls": [
-        "https://sakurano-e.musashino-city.ed.jp/modules/hp_jpage34/",
-        "https://sakurano-e.musashino-city.ed.jp/",
-        "https://sakurano-e.musashino-city.ed.jp/modules/hp_jpage14/",
-        "https://sakurano-e.musashino-city.ed.jp/modules/hp_jpage27/",
-        "https://sakurano-e.musashino-city.ed.jp/modules/hp_jpage28/",
-        "https://sakurano-e.musashino-city.ed.jp/modules/hp_jpage16/"
+        "https://sakurano-e.musashino-city.ed.jp/modules/hp_jpage34/"
       ],
       "mode": "pdf",
+      "discovery_depth": 0,
       "default_grade": "1年生",
-      "grades": ["1年生", "2年生", "3年生", "4年生", "5年生", "6年生", "全学年"],
+      "grades": [
+        "1年生",
+        "2年生",
+        "3年生",
+        "4年生",
+        "5年生",
+        "6年生",
+        "全学年"
+      ],
       "max_documents": 40,
-      "note": "학교·学年だより뿐 아니라 보건·급식·신입생 안내 페이지도 함께 확인하는 파일럿",
+      "note": "学校・学年だよりを新しい資料から上限内で収集。保健・献立・入学準備・ホームのPDFは同じcollection_idの別ソースに分離し、各上限を独立させる。年度・ファイル名の年による除外はしない。全学年共通ページはPDFがないため除外。",
       "collection_id": "sakurano",
       "collection_root": true,
       "source_group": "school",
       "feed_group": "notices",
       "content_kind": "document",
-      "latitude": 35.7120,
-      "longitude": 139.5320
+      "latitude": 35.712,
+      "longitude": 139.532
     },
     {
       "id": "sakurano_library",
@@ -281,17 +286,18 @@
     },
     {
       "id": "musashino_dai1_es",
+      "notification_revision": "coverage-20261001b",
       "name": "武蔵野市立第一小学校",
       "ward": "武蔵野市",
       "level": "小学校",
       "page_url": "https://dai1-e.musashino-city.ed.jp/modules/hp_jpage14/",
       "mode": "pdf",
       "default_grade": "全学年",
-      "grades": ["全学年"],
-      "include_patterns": ["だより", "月号", "pdf"],
-      "exclude_patterns": ["給食", "献立", "保健", "カウンセラー"],
-      "max_documents": 12,
-      "note": "武蔵野市公式の学校だよりページを確認した近隣校",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 28,
+      "note": "同一ページの学校だより・保健だよりを新しい資料から上限内で収集。月名だけのリンクもあるため保健の除外条件は使わない。年度による除外や過去ページへの巡回はしない。",
       "source_group": "school",
       "feed_group": "notices",
       "content_kind": "document",
@@ -357,17 +363,21 @@
     },
     {
       "id": "musashino_dai2_es",
+      "notification_revision": "coverage-20261001b",
       "name": "武蔵野市立第二小学校",
       "ward": "武蔵野市",
       "level": "小学校",
       "page_url": "https://dai2-e.musashino-city.ed.jp/modules/hp_jpage5/",
       "mode": "pdf",
       "default_grade": "全学年",
-      "grades": ["全学年"],
-      "include_patterns": ["巻頭言", "学校だより", "月号"],
-      "exclude_patterns": ["給食", "献立", "保健", "カウンセラー", "相談室"],
-      "max_documents": 12,
-      "note": "武蔵野市公式の配布物ページから学校だよりを確認する近隣校",
+      "grades": [
+        "全学年"
+      ],
+      "include_patterns": [
+        "巻頭言|学校だより|学校公開|運動会|非常変災|保護者連絡帳アプリマニュアル|入学のしおり|健康のしおり"
+      ],
+      "max_documents": 24,
+      "note": "公開配布物の学校だより・学校公開・運動会・非常変災時の基準と、入学・健康のしおり・アプリ手引きを新しい資料から上限内で収集。同一ルートの重複登録を避け、年度による除外はしない。",
       "source_group": "school",
       "feed_group": "notices",
       "content_kind": "document",
@@ -395,17 +405,18 @@
     },
     {
       "id": "musashino_dai4_es",
+      "notification_revision": "coverage-20261001b",
       "name": "武蔵野市立第四小学校",
       "ward": "武蔵野市",
       "level": "小学校",
       "page_url": "https://dai4-e.musashino-city.ed.jp/modules/hp_jpage3/",
       "mode": "pdf",
       "default_grade": "全学年",
-      "grades": ["全学年"],
-      "include_patterns": ["月号", "号"],
-      "exclude_patterns": ["給食", "献立", "保健", "カウンセラー"],
-      "max_documents": 12,
-      "note": "武蔵野市公式の学校便り「だいし」「はなみずき便り」ページ",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 30,
+      "note": "学校便り「だいし」「はなみずき便り」「ほけんだより」を同じページから新しい資料順に収集。現在14件を12件に切り詰めない上限。年度による除外はしない。",
       "source_group": "school",
       "feed_group": "notices",
       "content_kind": "document",
@@ -487,6 +498,440 @@
       "content_kind": "document",
       "latitude": 35.7038251,
       "longitude": 139.5685453
+    },
+    {
+      "id": "sakurano_health",
+      "name": "桜野小学校・保健だより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://sakurano-e.musashino-city.ed.jp/modules/hp_jpage14/",
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 16,
+      "discovery_depth": 0,
+      "collection_id": "sakurano",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "公開ほけんだよりを新しい資料から上限内で収集。年度による除外はせず、本文の年月を保持します。"
+    },
+    {
+      "id": "sakurano_meals",
+      "name": "桜野小学校・献立と食育",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://sakurano-e.musashino-city.ed.jp/modules/hp_jpage27/",
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 24,
+      "discovery_depth": 0,
+      "collection_id": "sakurano",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "公開の献立表と給食・食育おたよりを新しい資料から上限内で収集。年度による除外はせず、給食写真の日記ページは巡回しません。"
+    },
+    {
+      "id": "sakurano_new_students",
+      "name": "桜野小学校・新1年生の入学準備",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://sakurano-e.musashino-city.ed.jp/modules/hp_jpage28/",
+      "mode": "mixed",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 16,
+      "discovery_depth": 0,
+      "collection_id": "sakurano",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "新入学予定者向けの公開資料と準備品案内。現在の在籍学年全体に向けた月刊のおたよりではありません。",
+      "coverage_kind": "reference"
+    },
+    {
+      "id": "sakurano_parent_contact",
+      "name": "桜野小学校・欠席連絡の案内",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://sakurano-e.musashino-city.ed.jp/modules/hp_jpage10/",
+      "mode": "mixed",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 4,
+      "discovery_depth": 0,
+      "collection_id": "sakurano",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "公開の欠席連絡方法とアプリ手引書。アプリ内の連絡や外部の入力フォームは取得しません。",
+      "coverage_kind": "reference"
+    },
+    {
+      "id": "sakurano_home_documents",
+      "name": "桜野小学校・共通の学習案内",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://sakurano-e.musashino-city.ed.jp/",
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 6,
+      "discovery_depth": 0,
+      "collection_id": "sakurano",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "ホームのお知らせ欄にあるデジタル・シティズンシップ教育と欠席児童への学習支援のPDF。ホーム本文や日記は収集しません。",
+      "coverage_kind": "reference",
+      "include_patterns": [
+        "デジタル.?シティズンシップ|欠席児童"
+      ]
+    },
+    {
+      "id": "musashino_dai1_es_parents",
+      "name": "第一小学校・保護者の手続きとしおり",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_urls": [
+        "https://dai1-e.musashino-city.ed.jp/modules/hp_jpage27/",
+        "https://dai1-e.musashino-city.ed.jp/modules/hp_jpage19/",
+        "https://dai1-e.musashino-city.ed.jp/modules/hp_jpage33/",
+        "https://dai1-e.musashino-city.ed.jp/"
+      ],
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 10,
+      "discovery_depth": 0,
+      "collection_id": "musashino_dai1_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "携帯電話等の持込申請、連絡アプリ、一小のしおり、災害時の引き取り、玄関の電子錠などの公開PDF。ホーム本文は収集しません。",
+      "coverage_kind": "reference",
+      "exclude_patterns": [
+        "20230512091831\\.pdf$"
+      ],
+      "note": "ホームにある同一バイトのアプリ手引書は除外し、保護者の方へページの20230426123323.pdfを採用。"
+    },
+    {
+      "id": "musashino_oonoden_es_parents",
+      "name": "大野田小学校・保護者連絡アプリ手引書",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://oonoden-e.musashino-city.ed.jp/modules/hp_jpage12/",
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 4,
+      "discovery_depth": 0,
+      "collection_id": "musashino_oonoden_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "学校が公開する保護者向けアプリ手引書。外部リンク先やアプリ内の連絡は取得しません。",
+      "coverage_kind": "reference",
+      "include_patterns": [
+        "保護者向けアプリ手引書"
+      ]
+    },
+    {
+      "id": "musashino_sekimaeminami_es_parents",
+      "name": "関前南小学校・保護者連絡の手引き",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://sekimaeminami-e.musashino-city.ed.jp/modules/hp_jpage27/",
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 4,
+      "discovery_depth": 0,
+      "collection_id": "musashino_sekimaeminami_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "公開の保護者連絡帳アプリ手引書と困ったときの案内。印刷作業依頼書は対象外。",
+      "coverage_kind": "reference",
+      "include_patterns": [
+        "保護者|困ったとき"
+      ]
+    },
+    {
+      "id": "musashino_dai3_es_health",
+      "name": "第三小学校・ほけんだより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://dai3-e.musashino-city.ed.jp/modules/hp_jpage4/index.php?page_parent=1009",
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 16,
+      "discovery_depth": 0,
+      "collection_id": "musashino_dai3_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "公式サイトマップで確認したほけんだよりを新しい資料から上限内で収集。年度による除外や古い別ドメインの巡回はしません。"
+    },
+    {
+      "id": "musashino_dai3_es_parents",
+      "name": "第三小学校・保護者向け案内",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://dai3-e.musashino-city.ed.jp/modules/hp_jpage22/",
+      "mode": "mixed",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 8,
+      "discovery_depth": 0,
+      "collection_id": "musashino_dai3_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "武三小ハンドブック、欠席連絡用紙・アプリ案内、習熟度別算数の説明。公開本文と添付PDFのみ。",
+      "coverage_kind": "reference"
+    },
+    {
+      "id": "musashino_dai4_es_parents",
+      "name": "第四小学校・緊急時と連絡アプリ",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://dai4-e.musashino-city.ed.jp/modules/hp_jpage9/",
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 6,
+      "discovery_depth": 0,
+      "collection_id": "musashino_dai4_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "公開の緊急時対応・臨時休業基準と保護者連絡帳手引書。過年度の意識調査資料は対象外。",
+      "coverage_kind": "reference",
+      "include_patterns": [
+        "緊急時|非常変災|保護者連絡帳"
+      ]
+    },
+    {
+      "id": "musashino_dai5_es_parents",
+      "name": "第五小学校・入学と通学の案内",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_urls": [
+        "https://dai5-e.musashino-city.ed.jp/modules/hp_jpage12/",
+        "https://dai5-e.musashino-city.ed.jp/"
+      ],
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 12,
+      "discovery_depth": 0,
+      "collection_id": "musashino_dai5_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "公開の入学のしおり、スクールバス手引き・諸届、年間予定、連絡アプリ等。ホーム本文・バス時刻表のアプリ配信は収集しません。",
+      "coverage_kind": "reference",
+      "exclude_patterns": [
+        "20260320165157\\.pdf$"
+      ],
+      "note": "年間予定は7月更新版を採用し、ホームに残る3月版は重複掲載を避けて除外。"
+    },
+    {
+      "id": "musashino_honjuku_es_meals",
+      "name": "本宿小学校・毎月の献立表",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://honjuku-e.musashino-city.ed.jp/modules/hp_jpage2/index.php?page_parent=368",
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 12,
+      "discovery_depth": 0,
+      "collection_id": "musashino_honjuku_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "公開の献立表PDFを新しい資料から上限内で収集。年度による除外はせず、毎日の給食写真・日記は巡回しません。"
+    },
+    {
+      "id": "musashino_honjuku_es_parents",
+      "name": "本宿小学校・緊急時の登下校",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://honjuku-e.musashino-city.ed.jp/modules/hp_jpage2/",
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 4,
+      "discovery_depth": 0,
+      "collection_id": "musashino_honjuku_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "公開の緊急時の登下校案内。保護された保護者ページ・PTAは取得しません。",
+      "coverage_kind": "reference",
+      "include_patterns": [
+        "緊急時の登下校"
+      ]
+    },
+    {
+      "id": "musashino_senkawa_es_health",
+      "name": "千川小学校・保健だよりと生活リズム",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_urls": [
+        "https://senkawa-e.musashino-city.ed.jp/modules/hp_jpage3/index.php?page_parent=137",
+        "https://senkawa-e.musashino-city.ed.jp/modules/hp_jpage3/"
+      ],
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 16,
+      "discovery_depth": 0,
+      "collection_id": "musashino_senkawa_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "公開のほけんだよりと生活リズムチェック表を上限内で収集。年度による除外はせず、日記や写真は巡回しません。"
+    },
+    {
+      "id": "musashino_senkawa_es_parents",
+      "name": "千川小学校・保護者向け案内と予定",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_urls": [
+        "https://senkawa-e.musashino-city.ed.jp/modules/hp_jpage22/",
+        "https://senkawa-e.musashino-city.ed.jp/"
+      ],
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 10,
+      "discovery_depth": 0,
+      "collection_id": "musashino_senkawa_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "公開の連絡アプリ案内、学校公開の授業予定、年間予定、千川小のしおり、コンピュータの保護者用マニュアル。ホーム本文は収集しません。",
+      "coverage_kind": "reference"
+    },
+    {
+      "id": "musashino_inokashira_es_parents",
+      "name": "井之頭小学校・通学と各種様式",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_urls": [
+        "https://inokashira-e.musashino-city.ed.jp/modules/hp_jpage13/",
+        "https://inokashira-e.musashino-city.ed.jp/"
+      ],
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 16,
+      "discovery_depth": 0,
+      "collection_id": "musashino_inokashira_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "学校公開の医療費請求用紙、スクールバス諸届・手引き、臨時休業基準。ホーム本文や保護された連絡帳は取得しません。",
+      "coverage_kind": "reference"
+    },
+    {
+      "id": "musashino_inokashira_es_health",
+      "name": "井之頭小学校・登校許可証明の案内",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://inokashira-e.musashino-city.ed.jp/modules/hp_jpage29/",
+      "mode": "html_page",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 1,
+      "discovery_depth": 0,
+      "collection_id": "musashino_inokashira_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "学校感染症後の登校許可証明に関する公開本文。市の様式は原文の添付リンクで確認してください。",
+      "coverage_kind": "reference"
+    },
+    {
+      "id": "musashino_inokashira_es_new_students",
+      "name": "井之頭小学校・入学のしおり",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "page_url": "https://inokashira-e.musashino-city.ed.jp/modules/hp_jpage30/",
+      "mode": "pdf",
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "max_documents": 4,
+      "discovery_depth": 0,
+      "collection_id": "musashino_inokashira_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "content_kind": "document",
+      "coverage_note": "公開PDF本文は令和8年4月入学の案内。ページ見出しには令和7年度と残るため、年度はPDF原文を確認してください。",
+      "coverage_kind": "reference"
     },
     {
       "id": "musashino_dai2_gakudo",
@@ -738,6 +1183,613 @@
       "exclude_patterns": ["採用", "教員公募", "人事", "入試案内"],
       "max_documents": 12,
       "note": "도쿄도립고등학교의 HTML 뉴스"
+    },
+    {
+      "name": "武蔵野市・食育フェスタ",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "www.city.musashino.lg.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "sakurano",
+      "collection_root": false,
+      "shared_with_ward": true,
+      "source_group": "municipality",
+      "content_kind": "city_info",
+      "id": "musashino_food_family_events",
+      "page_urls": [
+        "https://www.city.musashino.lg.jp/kenko_fukushi/kenko_hoken/syokuiku/torikumi/index.html"
+      ],
+      "link_patterns": [
+        "(?s)食育フェスタ.*https://www\\.city\\.musashino\\.lg\\.jp/kenko_fukushi/kenko_hoken/syokuiku/torikumi/[0-9]+\\.html$"
+      ],
+      "max_documents": 12,
+      "feed_group": "events",
+      "coverage_note": "市・公式運営団体の公開情報。掲載日・更新日と開催日・対象年度は区別します。",
+      "collection_driver": "scheduled"
+    },
+    {
+      "name": "武蔵野市・親子スポーツイベント",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "www.city.musashino.lg.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "sakurano",
+      "collection_root": false,
+      "shared_with_ward": true,
+      "source_group": "municipality",
+      "content_kind": "city_info",
+      "id": "musashino_family_sports_events",
+      "page_urls": [
+        "https://www.city.musashino.lg.jp/heiwa_bunka_sports/sports_taikengakushu/event_sports/index.html"
+      ],
+      "link_patterns": [
+        "(?s)(?:市民スポーツフェスティバル|ファミリースポーツフェア|市民スポーツデー|ボールゲームフェスタ|親子|小学生).*https://www\\.city\\.musashino\\.lg\\.jp/heiwa_bunka_sports/sports_taikengakushu/event_sports/[0-9]+\\.html$"
+      ],
+      "max_documents": 12,
+      "feed_group": "events",
+      "coverage_note": "市・公式運営団体の公開情報。掲載日・更新日と開催日・対象年度は区別します。",
+      "collection_driver": "scheduled"
+    },
+    {
+      "name": "武蔵野市・あそべえ利用案内",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "www.city.musashino.lg.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "sakurano",
+      "collection_root": false,
+      "shared_with_ward": true,
+      "source_group": "after_school",
+      "content_kind": "after_school",
+      "id": "musashino_asobee_reference",
+      "page_urls": [
+        "https://www.city.musashino.lg.jp/shussan_kodomo_kyoiku/kodomo_kosodate/shisetsu/index.html"
+      ],
+      "link_patterns": [
+        "(?s)あそべえ.*https://www\\.city\\.musashino\\.lg\\.jp/shussan_kodomo_kyoiku/kodomo_kosodate/shisetsu/[0-9]+\\.html$"
+      ],
+      "max_documents": 4,
+      "feed_group": "notices",
+      "coverage_kind": "reference",
+      "coverage_note": "市・公式運営団体の公開情報。掲載日・更新日と開催日・対象年度は区別します。",
+      "collection_driver": "scheduled"
+    },
+    {
+      "name": "武蔵野市・学校給食の保護者案内",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "www.city.musashino.lg.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "sakurano",
+      "collection_root": false,
+      "shared_with_ward": true,
+      "source_group": "municipality",
+      "content_kind": "city_info",
+      "id": "musashino_school_lunch_parent",
+      "page_urls": [
+        "https://www.city.musashino.lg.jp/shussan_kodomo_kyoiku/sho_chugakko/kyushoku/index.html"
+      ],
+      "link_patterns": [
+        "(?s)(?:アレルギー|スマイル給食|産地偽装|放射性物質|武蔵野市の学校給食について).*https://www\\.city\\.musashino\\.lg\\.jp/shussan_kodomo_kyoiku/sho_chugakko/kyushoku/[0-9]+\\.html$"
+      ],
+      "max_documents": 15,
+      "feed_group": "notices",
+      "coverage_note": "市・公式運営団体の公開情報。掲載日・更新日と開催日・対象年度は区別します。",
+      "collection_driver": "scheduled"
+    },
+    {
+      "name": "武蔵野市・学校保健",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "www.city.musashino.lg.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "sakurano",
+      "collection_root": false,
+      "shared_with_ward": true,
+      "source_group": "municipality",
+      "content_kind": "city_info",
+      "id": "musashino_school_health_parent",
+      "page_urls": [
+        "https://www.city.musashino.lg.jp/shussan_kodomo_kyoiku/sho_chugakko/hoken/index.html"
+      ],
+      "link_patterns": [
+        "https://www\\.city\\.musashino\\.lg\\.jp/shussan_kodomo_kyoiku/sho_chugakko/hoken/(?:[0-9]+|gakkou_kansen)\\.html$"
+      ],
+      "max_documents": 10,
+      "feed_group": "notices",
+      "coverage_note": "市・公式運営団体の公開情報。掲載日・更新日と開催日・対象年度は区別します。",
+      "collection_driver": "scheduled",
+      "coverage_kind": "reference"
+    },
+    {
+      "name": "武蔵野市・通学と休業の安全案内",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "www.city.musashino.lg.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "sakurano",
+      "collection_root": false,
+      "shared_with_ward": true,
+      "source_group": "municipality",
+      "content_kind": "city_info",
+      "id": "musashino_school_safety_parent",
+      "page_urls": [
+        "https://www.city.musashino.lg.jp/shussan_kodomo_kyoiku/sho_chugakko/torikumi/index.html"
+      ],
+      "link_patterns": [
+        "(?s)(?:臨時休業|通学路).*https://www\\.city\\.musashino\\.lg\\.jp/shussan_kodomo_kyoiku/sho_chugakko/torikumi/[0-9]+\\.html$"
+      ],
+      "max_documents": 10,
+      "feed_group": "notices",
+      "coverage_note": "市・公式運営団体の公開情報。掲載日・更新日と開催日・対象年度は区別します。",
+      "collection_driver": "scheduled",
+      "coverage_kind": "reference"
+    },
+    {
+      "name": "一小あそべえ・公開のおたより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "mu-kodomo.kids.coocan.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "musashino_dai1_es",
+      "collection_root": false,
+      "shared_with_ward": false,
+      "source_group": "after_school",
+      "content_kind": "after_school",
+      "id": "musashino_dai1_es_asobee_public_letters",
+      "page_urls": [
+        "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
+      ],
+      "link_patterns": [
+        "https://mu-kodomo\\.kids\\.coocan\\.jp/kodomokan/20[0-9]{2}(?:0[1-9]|1[0-2])-1\\.pdf$"
+      ],
+      "max_documents": 4,
+      "feed_group": "notices",
+      "coverage_note": "子ども協会の公開一覧にある一小あそべえのおたより。非公開連絡や当月号の存在を推測しません。本文を読めない資料も原文リンクを残します。",
+      "related_collections": [
+        "musashino_dai1_gakudo"
+      ]
+    },
+    {
+      "name": "二小あそべえ・公開のおたより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "mu-kodomo.kids.coocan.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "musashino_dai2_es",
+      "collection_root": false,
+      "shared_with_ward": false,
+      "source_group": "after_school",
+      "content_kind": "after_school",
+      "id": "musashino_dai2_es_asobee_public_letters",
+      "page_urls": [
+        "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
+      ],
+      "link_patterns": [
+        "https://mu-kodomo\\.kids\\.coocan\\.jp/kodomokan/20[0-9]{2}(?:0[1-9]|1[0-2])-2\\.pdf$"
+      ],
+      "max_documents": 4,
+      "feed_group": "notices",
+      "coverage_note": "子ども協会の公開一覧にある二小あそべえのおたより。非公開連絡や当月号の存在を推測しません。本文を読めない資料も原文リンクを残します。",
+      "related_collections": [
+        "musashino_dai2_gakudo"
+      ]
+    },
+    {
+      "name": "三小あそべえ・公開のおたより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "mu-kodomo.kids.coocan.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "musashino_dai3_es",
+      "collection_root": false,
+      "shared_with_ward": false,
+      "source_group": "after_school",
+      "content_kind": "after_school",
+      "id": "musashino_dai3_es_asobee_public_letters",
+      "page_urls": [
+        "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
+      ],
+      "link_patterns": [
+        "https://mu-kodomo\\.kids\\.coocan\\.jp/kodomokan/20[0-9]{2}(?:0[1-9]|1[0-2])-3\\.pdf$"
+      ],
+      "max_documents": 4,
+      "feed_group": "notices",
+      "coverage_note": "子ども協会の公開一覧にある三小あそべえのおたより。非公開連絡や当月号の存在を推測しません。本文を読めない資料も原文リンクを残します。",
+      "related_collections": [
+        "musashino_dai3_gakudo"
+      ]
+    },
+    {
+      "name": "四小あそべえ・公開のおたより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "mu-kodomo.kids.coocan.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "musashino_dai4_es",
+      "collection_root": false,
+      "shared_with_ward": false,
+      "source_group": "after_school",
+      "content_kind": "after_school",
+      "id": "musashino_dai4_es_asobee_public_letters",
+      "page_urls": [
+        "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
+      ],
+      "link_patterns": [
+        "https://mu-kodomo\\.kids\\.coocan\\.jp/kodomokan/20[0-9]{2}(?:0[1-9]|1[0-2])-4\\.pdf$"
+      ],
+      "max_documents": 4,
+      "feed_group": "notices",
+      "coverage_note": "子ども協会の公開一覧にある四小あそべえのおたより。非公開連絡や当月号の存在を推測しません。本文を読めない資料も原文リンクを残します。",
+      "related_collections": [
+        "musashino_dai4_gakudo"
+      ]
+    },
+    {
+      "name": "五小あそべえ・公開のおたより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "mu-kodomo.kids.coocan.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "musashino_dai5_es",
+      "collection_root": false,
+      "shared_with_ward": false,
+      "source_group": "after_school",
+      "content_kind": "after_school",
+      "id": "musashino_dai5_es_asobee_public_letters",
+      "page_urls": [
+        "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
+      ],
+      "link_patterns": [
+        "https://mu-kodomo\\.kids\\.coocan\\.jp/kodomokan/20[0-9]{2}(?:0[1-9]|1[0-2])-5\\.pdf$"
+      ],
+      "max_documents": 4,
+      "feed_group": "notices",
+      "coverage_note": "子ども協会の公開一覧にある五小あそべえのおたより。非公開連絡や当月号の存在を推測しません。本文を読めない資料も原文リンクを残します。",
+      "related_collections": [
+        "musashino_dai5_gakudo"
+      ]
+    },
+    {
+      "name": "大野田あそべえ・公開のおたより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "mu-kodomo.kids.coocan.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "musashino_oonoden_es",
+      "collection_root": false,
+      "shared_with_ward": false,
+      "source_group": "after_school",
+      "content_kind": "after_school",
+      "id": "musashino_oonoden_es_asobee_public_letters",
+      "page_urls": [
+        "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
+      ],
+      "link_patterns": [
+        "https://mu-kodomo\\.kids\\.coocan\\.jp/kodomokan/20[0-9]{2}(?:0[1-9]|1[0-2])-6\\.pdf$"
+      ],
+      "max_documents": 4,
+      "feed_group": "notices",
+      "coverage_note": "子ども協会の公開一覧にある大野田あそべえのおたより。非公開連絡や当月号の存在を推測しません。本文を読めない資料も原文リンクを残します。",
+      "related_collections": [
+        "musashino_oonoden_gakudo"
+      ]
+    },
+    {
+      "name": "境南あそべえ・公開のおたより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "mu-kodomo.kids.coocan.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "musashino_kyounan_es",
+      "collection_root": false,
+      "shared_with_ward": false,
+      "source_group": "after_school",
+      "content_kind": "after_school",
+      "id": "musashino_kyounan_es_asobee_public_letters",
+      "page_urls": [
+        "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
+      ],
+      "link_patterns": [
+        "https://mu-kodomo\\.kids\\.coocan\\.jp/kodomokan/20[0-9]{2}(?:0[1-9]|1[0-2])-7\\.pdf$"
+      ],
+      "max_documents": 4,
+      "feed_group": "notices",
+      "coverage_note": "子ども協会の公開一覧にある境南あそべえのおたより。非公開連絡や当月号の存在を推測しません。本文を読めない資料も原文リンクを残します。",
+      "related_collections": [
+        "musashino_kyounan_gakudo"
+      ]
+    },
+    {
+      "name": "本宿あそべえ・公開のおたより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "mu-kodomo.kids.coocan.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "musashino_honjuku_es",
+      "collection_root": false,
+      "shared_with_ward": false,
+      "source_group": "after_school",
+      "content_kind": "after_school",
+      "id": "musashino_honjuku_es_asobee_public_letters",
+      "page_urls": [
+        "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
+      ],
+      "link_patterns": [
+        "https://mu-kodomo\\.kids\\.coocan\\.jp/kodomokan/20[0-9]{2}(?:0[1-9]|1[0-2])-8\\.pdf$"
+      ],
+      "max_documents": 4,
+      "feed_group": "notices",
+      "coverage_note": "子ども協会の公開一覧にある本宿あそべえのおたより。非公開連絡や当月号の存在を推測しません。本文を読めない資料も原文リンクを残します。",
+      "related_collections": [
+        "musashino_honjuku_gakudo"
+      ]
+    },
+    {
+      "name": "千川あそべえ・公開のおたより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "mu-kodomo.kids.coocan.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "musashino_senkawa_es",
+      "collection_root": false,
+      "shared_with_ward": false,
+      "source_group": "after_school",
+      "content_kind": "after_school",
+      "id": "musashino_senkawa_es_asobee_public_letters",
+      "page_urls": [
+        "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
+      ],
+      "link_patterns": [
+        "https://mu-kodomo\\.kids\\.coocan\\.jp/kodomokan/20[0-9]{2}(?:0[1-9]|1[0-2])-9\\.pdf$"
+      ],
+      "max_documents": 4,
+      "feed_group": "notices",
+      "coverage_note": "子ども協会の公開一覧にある千川あそべえのおたより。非公開連絡や当月号の存在を推測しません。本文を読めない資料も原文リンクを残します。",
+      "related_collections": [
+        "musashino_senkawa_gakudo"
+      ]
+    },
+    {
+      "name": "井之頭あそべえ・公開のおたより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "mu-kodomo.kids.coocan.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "musashino_inokashira_es",
+      "collection_root": false,
+      "shared_with_ward": false,
+      "source_group": "after_school",
+      "content_kind": "after_school",
+      "id": "musashino_inokashira_es_asobee_public_letters",
+      "page_urls": [
+        "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
+      ],
+      "link_patterns": [
+        "https://mu-kodomo\\.kids\\.coocan\\.jp/kodomokan/20[0-9]{2}(?:0[1-9]|1[0-2])-10\\.pdf$"
+      ],
+      "max_documents": 4,
+      "feed_group": "notices",
+      "coverage_note": "子ども協会の公開一覧にある井之頭あそべえのおたより。非公開連絡や当月号の存在を推測しません。本文を読めない資料も原文リンクを残します。",
+      "related_collections": [
+        "musashino_inokashira_gakudo"
+      ]
+    },
+    {
+      "name": "関前南あそべえ・公開のおたより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "mu-kodomo.kids.coocan.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "musashino_sekimaeminami_es",
+      "collection_root": false,
+      "shared_with_ward": false,
+      "source_group": "after_school",
+      "content_kind": "after_school",
+      "id": "musashino_sekimaeminami_es_asobee_public_letters",
+      "page_urls": [
+        "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
+      ],
+      "link_patterns": [
+        "https://mu-kodomo\\.kids\\.coocan\\.jp/kodomokan/20[0-9]{2}(?:0[1-9]|1[0-2])-11\\.pdf$"
+      ],
+      "max_documents": 4,
+      "feed_group": "notices",
+      "coverage_note": "子ども協会の公開一覧にある関前南あそべえのおたより。非公開連絡や当月号の存在を推測しません。本文を読めない資料も原文リンクを残します。",
+      "related_collections": [
+        "musashino_sekimaeminami_gakudo"
+      ]
+    },
+    {
+      "name": "桜野あそべえ・公開のおたより",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "link_index",
+      "allowed_hosts": [
+        "mu-kodomo.kids.coocan.jp"
+      ],
+      "discovery_depth": 0,
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "sakurano",
+      "collection_root": false,
+      "shared_with_ward": false,
+      "source_group": "after_school",
+      "content_kind": "after_school",
+      "id": "sakurano_asobee_public_letters",
+      "page_urls": [
+        "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
+      ],
+      "link_patterns": [
+        "https://mu-kodomo\\.kids\\.coocan\\.jp/kodomokan/20[0-9]{2}(?:0[1-9]|1[0-2])-12\\.pdf$"
+      ],
+      "max_documents": 4,
+      "feed_group": "notices",
+      "coverage_note": "子ども協会の公開一覧にある桜野あそべえのおたより。非公開連絡や当月号の存在を推測しません。本文を読めない資料も原文リンクを残します。",
+      "related_collections": []
+    },
+    {
+      "id": "musashino_oonoden_es_new_students",
+      "name": "大野田小学校・新入学案内",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "pdf",
+      "page_urls": [
+        "https://oonoden-e.musashino-city.ed.jp/modules/hp_jpage38/"
+      ],
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "musashino_oonoden_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "coverage_kind": "reference",
+      "max_documents": 6,
+      "coverage_note": "公式ページに埋め込まれた入学準備資料。対象年度は原文をご確認ください。掲載日をファイル名から推測しません。"
+    },
+    {
+      "id": "musashino_kyounan_es_new_students",
+      "name": "境南小学校・新入学案内",
+      "ward": "武蔵野市",
+      "level": "小学校",
+      "mode": "pdf",
+      "page_urls": [
+        "https://kyounan-e.musashino-city.ed.jp/modules/hp_jpage16/"
+      ],
+      "default_grade": "全学年",
+      "grades": [
+        "全学年"
+      ],
+      "collection_id": "musashino_kyounan_es",
+      "collection_root": false,
+      "source_group": "school",
+      "feed_group": "notices",
+      "coverage_kind": "reference",
+      "max_documents": 6,
+      "coverage_note": "公式ページに埋め込まれた入学準備資料。対象年度は原文をご確認ください。掲載日をファイル名から推測しません。"
     }
   ]
 }

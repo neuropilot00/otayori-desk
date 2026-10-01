@@ -79,6 +79,8 @@ class SourceConfig:
     coverage_note: str = "登録した公開ページの直近の資料が対象です。非公開の連絡帳は含みません。"
     shared_with_ward: bool = False
     collection_driver: str = "server"
+    notification_revision: str = ""
+    related_collections: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -99,6 +101,7 @@ class SourceConfig:
             "note": self.note,
             "collection_id": self.collection_id or self.id,
             "collection_root": self.collection_root,
+            "related_collections": list(self.related_collections),
             "source_group": self.source_group,
             "source_group_label": SOURCE_GROUP_LABELS.get(self.source_group, self.source_group),
             "feed_group": self.feed_group,
@@ -132,6 +135,7 @@ class CatalogNotice:
     deadline_date: str = ""
     date_kind: str = "published"
     extraction_status: str = "ok"
+    attachments: tuple[tuple[str, str], ...] = ()
 
     def categories(self) -> dict[str, list[str]]:
         return {key: value for key, value in categorize_text(self.text, self.kind).items() if value}
@@ -167,7 +171,8 @@ class CatalogNotice:
 
     def to_detail(self) -> dict[str, Any]:
         result = self.to_summary()
-        result.update({"text": self.text, "categories": self.categories(), "content_hash": self.content_hash})
+        result.update({"text": self.text, "categories": self.categories(), "content_hash": self.content_hash,
+                       "attachments": [{"title": title, "url": url} for title, url in self.attachments]})
         return result
 
 
@@ -334,6 +339,7 @@ class CatalogCacheStore:
             deadline_date=str(payload.get("deadline_date", "")),
             date_kind=str(payload.get("date_kind", "published")),
             extraction_status=str(payload.get("extraction_status", "ok")),
+            attachments=tuple((str(item["title"]), str(item["url"])) for item in payload.get("attachments", [])),
         )
 
 
@@ -347,6 +353,11 @@ class _NewsLinkParser(HTMLParser):
         self._text: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() in {"embed", "object", "iframe"}:
+            attributes = dict(attrs)
+            url = attributes.get("data" if tag.lower() == "object" else "src")
+            if url and _is_document_url(url):
+                self.anchors.append((url, attributes.get("title") or ""))
         if tag.lower() == "img" and self._href is not None and not any(part.strip() for part in self._text):
             alt = dict(attrs).get("alt") or ""
             self._text.append(re.sub(r"の\d+ページ目のサムネイル$", "", alt))
@@ -428,6 +439,9 @@ class _MainContentTextParser(HTMLParser):
         self.parts: list[str] = []
         self._depth = 0
         self._skip_depth = 0
+        self.attachments: list[tuple[str, str]] = []
+        self._link_href: str | None = None
+        self._link_text: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         lowered = tag.lower()
@@ -444,6 +458,12 @@ class _MainContentTextParser(HTMLParser):
             return
         if self._skip_depth:
             return
+        if lowered == "a" and attributes.get("href"):
+            self._link_href, self._link_text = attributes["href"], []
+        elif lowered == "img" and attributes.get("src"):
+            self.attachments.append((attributes["src"], attributes.get("alt") or "画像資料"))
+            if self._link_href:
+                self._link_text.append(attributes.get("alt") or "")
         if lowered in self.BLOCK_TAGS:
             self.parts.append("\n")
         if lowered not in self.VOID_TAGS:
@@ -458,6 +478,9 @@ class _MainContentTextParser(HTMLParser):
             return
         if self._skip_depth:
             return
+        if lowered == "a" and self._link_href:
+            self.attachments.append((self._link_href, " ".join(self._link_text)))
+            self._link_href, self._link_text = None, []
         if lowered in self.BLOCK_TAGS:
             self.parts.append("\n")
         if lowered not in self.VOID_TAGS:
@@ -466,6 +489,8 @@ class _MainContentTextParser(HTMLParser):
     def handle_data(self, data: str) -> None:
         if self._depth and not self._skip_depth:
             self.parts.append(data)
+            if self._link_href:
+                self._link_text.append(data)
 
 
 def _clean_title(value: str) -> str:
@@ -557,6 +582,12 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
     collection_driver = str(raw.get("collection_driver", "server"))
     if collection_driver not in {"server", "scheduled"}:
         raise CatalogError("collection_driver must be server or scheduled")
+    notification_revision = str(raw.get("notification_revision", ""))
+    if not re.fullmatch(r"[A-Za-z0-9_-]{0,64}", notification_revision):
+        raise CatalogError("notification_revision must be a short registry version")
+    related = raw.get("related_collections", [])
+    if not isinstance(related, list) or any(not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", value) for value in related):
+        raise CatalogError("related_collections must contain registry collection IDs")
     return SourceConfig(
         id=str(raw["id"]).strip(),
         name=str(raw["name"]).strip(),
@@ -588,6 +619,8 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
         coverage_note=str(raw.get("coverage_note", SourceConfig.coverage_note)),
         shared_with_ward=bool(raw.get("shared_with_ward", False)),
         collection_driver=collection_driver,
+        notification_revision=notification_revision,
+        related_collections=tuple(dict.fromkeys(related)),
     )
 
 
@@ -614,6 +647,9 @@ def load_sources(path: Path) -> list[SourceConfig]:
     ids = [source.id for source in sources]
     if len(set(ids)) != len(ids):
         raise CatalogError("source ids must be unique")
+    collections = {source.collection_id for source in sources}
+    if any(set(source.related_collections) - collections for source in sources):
+        raise CatalogError("related_collections contains an unknown collection")
     return sources
 
 
@@ -700,9 +736,48 @@ def _news_title(value: str, url: str) -> str:
 def _candidate_sort_key(candidate: LinkCandidate) -> tuple[int, str, str]:
     filename = urlparse(candidate.url).path.rsplit("/", 1)[-1]
     timestamp = re.search(r"(?<!\d)(20\d{2})(\d{2})(\d{2})(?:\d{6})?(?!\d)", filename)
-    file_id = re.search(r"/file/(\d+)$", urlparse(candidate.url).path)
-    numeric_date = int(timestamp.group(0)) if timestamp else int(file_id[1]) if file_id else 0
+    file_id = re.search(r"/(?:file|download/document)/(\d+)/?$", urlparse(candidate.url).path)
+    # Upload timestamps are a discovery ordering hint, never publication dates.
+    # Normalize both YYYYMMDD and YYYYMMDDhhmmss to the same scale.
+    numeric_date = int(timestamp.group(0).ljust(14, "0")) if timestamp else int(file_id[1]) if file_id else 0
     return numeric_date, _clean_title(candidate.title), candidate.url
+
+
+def _candidate_matches_grade(candidate: LinkCandidate, grade: str) -> bool:
+    if grade == "全学年":
+        return True
+    title = unicodedata.normalize("NFKC", candidate.title)
+    if re.search(r"全学年|全校|共通", title):
+        return True
+    numbers = set(re.findall(r"(?<!\d)(?:第)?([1-6])(?:年生|学年)", title))
+    for match in re.finditer(r"([1-6](?:\s*[・、/〜~～-]\s*[1-6])+)\s*(?:年生|学年)", title):
+        values = [int(value) for value in re.findall(r"[1-6]", match[1])]
+        if re.search(r"[〜~～-]", match[1]):
+            values = list(range(min(values), max(values) + 1))
+        numbers.update(map(str, values))
+    return not numbers or grade.removesuffix("年生") in numbers
+
+
+def _html_attachments(html: str, source: SourceConfig, page_url: str) -> tuple[tuple[str, str], ...]:
+    # Body-scoped HTMLParser callbacks; no scripts, navigation or remote fetches.
+    # https://docs.python.org/3/library/html.parser.html#html.parser.HTMLParser.handle_starttag
+    parser = _MainContentTextParser()
+    parser.feed(html)
+    parser.close()
+    hosts = {urlparse(url).hostname for url in source.page_urls} | set(source.allowed_hosts)
+    links = {}
+    for href, title in parser.attachments:
+        url = urldefrag(urljoin(page_url, href))[0]
+        try:
+            parsed = urlparse(url)
+            safe = parsed.scheme in {"http", "https"} and parsed.hostname in hosts and not parsed.username and not parsed.password and parsed.port in {None, 80, 443}
+        except ValueError:
+            safe = False
+        if safe and "/_template_/" not in parsed.path and (_is_document_url(url) or parsed.path.lower().endswith((".jpg", ".jpeg", ".png", ".webp", ".doc", ".docx", ".xls", ".xlsx"))):
+            links.setdefault(url, _clean_title(title)[:500] or "添付資料")
+    if len(links) > 80:
+        raise ExtractionError("添付資料が確認上限を超えています。公式ページをご確認ください。")
+    return tuple((title, url) for url, title in links.items())
 
 
 def _is_document_url(url: str) -> bool:
@@ -888,6 +963,7 @@ class CatalogService:
             requested = next((source for source in selected if source.id == source_id), None)
             if requested and requested.collection_root:
                 selected = [source for source in selected if source.collection_id == requested.collection_id
+                            or requested.collection_id in source.related_collections
                             or (source.shared_with_ward and source.ward == requested.ward)]
             else:
                 selected = [source for source in selected if source.id == source_id]
@@ -1063,7 +1139,7 @@ class CatalogService:
                 for candidate in page_candidates:
                     if urlparse(candidate.url).hostname not in allowed_hosts:
                         continue
-                    if self._matches(source, candidate):
+                    if self._matches(source, candidate) and _candidate_matches_grade(candidate, grade):
                         candidates_by_url.setdefault(candidate.url, candidate)
                 if depth < source.discovery_depth:
                     for candidate in self._scoped_links(page_html, source, page_url):
@@ -1096,7 +1172,7 @@ class CatalogService:
                     notices.append(CatalogNotice(
                         id=sha256_text(f"{source.id}\n{grade}\n{candidate.url}\noriginal-only")[:20],
                         source_id=source.id, source_name=source.name, ward=source.ward, level=source.level,
-                        grade=grade, title=candidate.title or source.name, kind=candidate.kind,
+                        grade=grade, title=self._display_title(candidate, source, grade, ""), kind=candidate.kind,
                         url=candidate.url, text="本文の自動読み取りを完了できませんでした。内容・日付・持ち物は公式の原文をご確認ください。",
                         content_hash="", date_label=label, published_label="" if published == "更新資料" else published,
                         source_group=source.source_group, feed_group=source.feed_group, coverage_kind=source.coverage_kind,
@@ -1126,12 +1202,9 @@ class CatalogService:
     ) -> CatalogNotice | None:
         is_html = False
         date_text = None
-        if grade != "全学年":
-            # Standalone per-grade PDFs (e.g. library book lists) are not multi-
-            # grade newsletters. Do not expose another grade's file as grade 1.
-            heading = re.match(r"^[・＊*\s]*(?:第)?([1-6])(?:年生|学年)", unicodedata.normalize("NFKC", candidate.title))
-            if heading and f"{heading[1]}年生" != grade:
-                return None
+        attachments = ()
+        if not _candidate_matches_grade(candidate, grade):
+            return None
         if source.mode == "static":
             text = source.static_text
             content_hash = sha256_text(text)
@@ -1157,6 +1230,7 @@ class CatalogService:
             else:
                 is_html = True
                 text, candidate = self._html_notice(page_html, source, candidate)
+                attachments = _html_attachments(page_html, source, candidate.url)
                 content_hash = sha256_text(text)
                 kind = candidate.kind
         text = "\n".join(clean_text_lines(text))
@@ -1194,6 +1268,7 @@ class CatalogService:
             event_date=event_date,
             deadline_date=deadline_date,
             date_kind=date_kind,
+            attachments=attachments,
         )
 
     @staticmethod
@@ -1244,12 +1319,14 @@ class CatalogService:
         if source.mode == "html_news":
             return _news_title(candidate.title, candidate.url)
         title = re.sub(r"^\((?:表面|裏面)\)", "", _clean_title(candidate.title))
+        if re.fullmatch(r"(?:PDF\s*)?ダウンロード", title, re.IGNORECASE):
+            title = source.name
         issue_month = _issue_month(f"{candidate.title}\n{text}", candidate.kind)
         if issue_month and candidate.kind == "grade_news":
             return f"{grade} 学年だより・{issue_month}月号"
         if issue_month and candidate.kind == "school_news":
             return f"学校だより・{issue_month}月号"
-        return title or candidate.url.rsplit("/", 1)[-1] or candidate.url
+        return title or source.name
 
     @staticmethod
     def _parse_news_links(html: str, source: SourceConfig, page_url: str | None = None) -> list[LinkCandidate]:

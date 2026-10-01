@@ -1,4 +1,4 @@
-"""Bounded, offline Japanese OCR for PDFs with no extractable text.
+"""Bounded, offline Japanese OCR for unread pages, including hybrid PDFs.
 
 Requires Poppler's pdftoppm and Tesseract with the jpn language pack. There
 are no downloads or network calls at runtime. The caller checks encryption
@@ -22,6 +22,7 @@ import time
 from collections import OrderedDict
 
 MAX_PDF_BYTES = 10_000_000
+MAX_PDF_PAGES = 50
 MAX_OCR_PAGES = 6
 MAX_IMAGE_SIDE = 3200
 MAX_IMAGE_BYTES = MAX_IMAGE_SIDE * MAX_IMAGE_SIDE + 256
@@ -42,7 +43,7 @@ _JAPANESE = re.compile(r"[\u3041-\u3096\u30a1-\u30fa\u3400-\u4dbf\u4e00-\u9fff]"
 _CJK_SPACE = re.compile(r"(?<=[\u3000-\u9fff]) +| +(?=[\u3000-\u9fff])")
 _slots = threading.BoundedSemaphore(1)
 _cache_lock = threading.Lock()
-_cache: OrderedDict[str, str] = OrderedDict()
+_cache: OrderedDict[tuple[str, int, tuple[int, ...]], dict[int, str]] = OrderedDict()
 
 # Apply OS limits in a fresh interpreter, NOT preexec_fn (unsafe in the
 # threaded catalog service). exec replaces that interpreter, so run(timeout)
@@ -62,41 +63,63 @@ class PdfOcrError(RuntimeError):
     """OCR is unavailable, exceeded a limit, or did not produce reliable text."""
 
 
-def _cached(digest: str) -> str | None:
+def _cached(key: tuple[str, int, tuple[int, ...]]) -> dict[int, str] | None:
     with _cache_lock:
-        text = _cache.get(digest)
-        if text is not None:
-            _cache.move_to_end(digest)
-        return text
+        pages = _cache.get(key)
+        if pages is not None:
+            _cache.move_to_end(key)
+            return pages.copy()
+        return None
 
 
 def extract_pdf_ocr(payload: bytes, *, page_count: int) -> str:
-    """Return plain text only after EVERY page passes the quality gate.
+    """Whole-document compatibility entry point; blank pages contain no text."""
+    pages = extract_pdf_ocr_pages(payload, page_count=page_count)
+    text = "\n".join(pages.values())
+    if not text.strip():
+        raise PdfOcrError("PDF contains no readable text")
+    return text
 
-    The bounded process-local LRU is keyed by content, not URL. Recheck after
+
+def extract_pdf_ocr_pages(
+    payload: bytes, *, page_count: int, page_numbers: tuple[int, ...] | None = None,
+) -> dict[int, str]:
+    """Return every requested 1-based page or fail the entire request.
+
+    At most six pages share ONE slot and document deadline, even in a larger
+    native PDF. A blank result means a verified entirely white raster, never
+    empty/failed OCR. The LRU includes content and selection. Recheck after
     acquiring the single OCR slot to coalesce simultaneous requests for the
     same PDF. Errors and partial documents are never cached as successes.
     """
     if len(payload) > MAX_PDF_BYTES:
         raise PdfOcrError("PDF exceeds OCR byte limit")
-    if not 1 <= page_count <= MAX_OCR_PAGES:
-        raise PdfOcrError(f"OCR supports 1-{MAX_OCR_PAGES} pages; got {page_count}")
-    digest = hashlib.sha256(payload).hexdigest()
-    cached = _cached(digest)
+    if not 1 <= page_count <= MAX_PDF_PAGES:
+        raise PdfOcrError(f"PDF supports 1-{MAX_PDF_PAGES} pages; got {page_count}")
+    numbers = tuple(range(1, page_count + 1)) if page_numbers is None else tuple(page_numbers)
+    if not 1 <= len(numbers) <= MAX_OCR_PAGES:
+        raise PdfOcrError(f"OCR supports 1-{MAX_OCR_PAGES} pages; got {len(numbers)}")
+    if any(type(number) is not int or not 1 <= number <= page_count for number in numbers) or len(set(numbers)) != len(numbers):
+        raise PdfOcrError("invalid OCR page selection")
+    numbers = tuple(sorted(numbers))
+    key = (hashlib.sha256(payload).hexdigest(), page_count, numbers)
+    cached = _cached(key)
     if cached is not None:
         return cached
     if not _slots.acquire(timeout=QUEUE_TIMEOUT_SECONDS):
         raise PdfOcrError("OCR is busy; retry later")
     try:
-        cached = _cached(digest)
+        cached = _cached(key)
         if cached is not None:
             return cached
-        text = _extract_uncached(payload, page_count)
+        pages = _extract_uncached(payload, numbers)
+        if set(pages) != set(numbers):
+            raise PdfOcrError("OCR returned an incomplete page selection")
         with _cache_lock:
-            _cache[digest] = text
+            _cache[key] = pages.copy()
             while len(_cache) > CACHE_ENTRIES:
                 _cache.popitem(last=False)
-        return text
+        return pages
     except OSError as exc:
         raise PdfOcrError("OCR could not access its temporary files or tools") from exc
     finally:
@@ -131,7 +154,7 @@ def _run(command: list[str], deadline: float, stage: str) -> bytes:
         return result
 
 
-def _check_image(path: Path) -> None:
+def _check_image(path: Path) -> bool:
     # Poppler produces an uncompressed 8-bit PGM, so dimensions AND disk size
     # can be checked without another image decoder/decompression allocation.
     if path.stat().st_size > MAX_IMAGE_BYTES:
@@ -146,6 +169,14 @@ def _check_image(path: Path) -> None:
         raise PdfOcrError("OCR image exceeds pixel limit")
     if path.stat().st_size != match.end() + width * height:
         raise PdfOcrError("OCR renderer returned an incomplete image")
+    # Only an entirely white raster is proven blank. Do not use a percentage
+    # threshold that could hide a faint notice, a footer, or a small image.
+    with path.open("rb") as image:
+        image.seek(match.end())
+        while chunk := image.read(65_536):
+            if chunk.count(b"\xff") != len(chunk):
+                return False
+    return True
 
 
 def _text_from_tsv(data: bytes, page: int) -> str:
@@ -201,7 +232,7 @@ def _text_from_tsv(data: bytes, page: int) -> str:
     return text
 
 
-def _extract_uncached(payload: bytes, page_count: int) -> str:
+def _extract_uncached(payload: bytes, page_numbers: tuple[int, ...]) -> dict[int, str]:
     if os.name != "posix":
         raise PdfOcrError("bounded OCR requires a POSIX host")
     renderer, tesseract = shutil.which("pdftoppm"), shutil.which("tesseract")
@@ -217,21 +248,26 @@ def _extract_uncached(payload: bytes, page_count: int) -> str:
         pdf, prefix = root / "document.pdf", root / "page"
         image = prefix.with_suffix(".pgm")
         pdf.write_bytes(payload)
-        pages: list[str] = []
-        for number in range(1, page_count + 1):
+        pages: dict[int, str] = {}
+        for number in page_numbers:
             _run([
                 renderer, "-f", str(number), "-l", str(number), "-singlefile",
                 "-scale-to", str(MAX_IMAGE_SIDE), "-gray", str(pdf), str(prefix),
             ], deadline, f"PDF rasterization page {number}")
-            _check_image(image)
+            if _check_image(image):
+                pages[number] = ""
+                image.unlink()
+                continue
             data = _run([
                 tesseract, str(image), "stdout", "-l", "jpn", "--oem", "1",
                 "--psm", "3", "-c", "tessedit_create_tsv=1",
             ], deadline, f"Japanese OCR page {number}")
-            pages.append(_text_from_tsv(data, number))
+            pages[number] = _text_from_tsv(data, number)
             image.unlink()
-            if sum(map(len, pages)) + len(pages) - 1 > MAX_TEXT_CHARACTERS:
+            if sum(map(len, pages.values())) + len(pages) - 1 > MAX_TEXT_CHARACTERS:
                 raise PdfOcrError("OCR text exceeds safety limit")
+        if sum(map(len, pages.values())) + len(pages) - 1 > MAX_TEXT_CHARACTERS:
+            raise PdfOcrError("OCR text exceeds safety limit")
         if time.monotonic() > deadline:
             raise PdfOcrError("OCR document time limit exceeded")
-        return "\n".join(pages)
+        return pages

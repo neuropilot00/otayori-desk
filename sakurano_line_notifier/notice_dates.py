@@ -59,7 +59,14 @@ def publication_date(html: str, text: str) -> str:
 
 
 def activity_dates(text: str) -> tuple[str, str]:
+    event = labelled_date(text, r"開催日(?:時)?|実施日(?:時)?|期日|(?<![一-龯ぁ-んァ-ヶ])日時")
+    normalized = unicodedata.normalize("NFKC", text)
+    # A recurring list is not one event on its first (possibly past) date.
+    # Leave it undated and preserve the original schedule instead of archiving
+    # future sessions or exporting an arbitrary first session to a calendar.
+    if re.search(r"(?:開催日(?:時)?|実施日(?:時)?)\s*[:：]?\s*(?:20\d{2}年|令和\s*\d+年)\s*\d{1,2}月\s*\d{1,2}日[^\n、,]{0,20}\s*[、,]\s*(?:(?:20\d{2}|令和\d+)年)?\s*\d{1,2}月\s*\d{1,2}日", normalized):
+        event = ""
     return (
-        labelled_date(text, r"開催日(?:時)?|実施日(?:時)?|期日|(?<![一-龯ぁ-んァ-ヶ])日時"),
+        event,
         labelled_date(text, r"申込み締め切り日|申込締切日|申込締切|申込締め切り|申込期限|応募締切|提出期限"),
     )

@@ -23,10 +23,13 @@ class SourceRegistryTests(unittest.TestCase):
         self.assertGreaterEqual(len(sources), 8)
         self.assertEqual({source.level for source in sources}, {"小学校", "中学校", "高等学校"})
         self.assertEqual(sources[0].default_grade, "1年生")
-        self.assertGreaterEqual(len(sources[0].page_urls), 5)
+        sakurano_pages = {url for source in sources if source.collection_id == "sakurano" and source.source_group == "school" for url in source.page_urls}
+        self.assertGreaterEqual(len(sakurano_pages), 5)
+        for section in ("hp_jpage34", "hp_jpage14", "hp_jpage27", "hp_jpage38"):
+            self.assertTrue(any(section in url for url in sakurano_pages))
         self.assertEqual(next(source for source in sources if source.id == "sakurano_gakudo").grades, ("全学年",))
         musashino_schools = {source.collection_id for source in sources if source.ward == "武蔵野市" and source.source_group == "school" and source.level == "小学校"}
-        musashino_clubs = {source.id for source in sources if source.ward == "武蔵野市" and source.source_group == "after_school" and source.coverage_kind == "reference"}
+        musashino_clubs = {source.id for source in sources if source.ward == "武蔵野市" and source.source_group == "after_school" and source.coverage_kind == "reference" and source.id.endswith("_gakudo")}
         self.assertEqual(len(musashino_schools), 12)
         self.assertEqual(len(musashino_clubs), 12)
 

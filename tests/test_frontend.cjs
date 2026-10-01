@@ -460,3 +460,16 @@ test("coverage stays closed by default and new asset versions match the service 
   const policyCss = readFileSync(path.join(web, "policies.html"), "utf8").match(/\/app\.css\?v=[^"']+/)[0];
   assert.ok(sw.includes(`"${policyCss}"`));
 });
+
+test("official attachment links are compact, escaped, collapsed and never presented as read bodies", () => {
+  const app = frontend();
+  const html = app.detailMarkup(notice("attachments", {attachments: [
+    {title: '<img src=x onerror=alert(1)>申込書', url: 'https://school.example/form.pdf'},
+    {title: 'bad', url: 'javascript:alert(1)'},
+  ]}));
+  assert.match(html, /<details class="detail-section attachment-links">/);
+  assert.match(html, /https:\/\/school.example\/form.pdf/);
+  assert.match(html, /&lt;img/);
+  assert.match(html, /添付本文は自動確認の対象外/);
+  assert.doesNotMatch(html, /javascript:|<img src/);
+});

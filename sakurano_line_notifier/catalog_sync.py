@@ -68,6 +68,19 @@ def accept_snapshot(service: CatalogService, payload: dict) -> bool:
             raise CatalogError("invalid snapshot extraction")
         if raw["id"] in ids or raw["url"] in urls:
             raise CatalogError("duplicate snapshot document")
+        attachments = raw.get("attachments", [])
+        if not isinstance(attachments, list) or len(attachments) > 80:
+            raise CatalogError("invalid snapshot attachments")
+        for attachment in attachments:
+            if not isinstance(attachment, dict) or not isinstance(attachment.get("title"), str) or not isinstance(attachment.get("url"), str) or len(attachment["title"]) > 500:
+                raise CatalogError("invalid snapshot attachment")
+            try:
+                link = urlparse(attachment["url"])
+                safe_link = link.scheme in {"https", "http"} and link.hostname in hosts and not link.username and not link.password and link.port in {None, 80, 443}
+            except ValueError:
+                safe_link = False
+            if not safe_link:
+                raise CatalogError("snapshot attachment outside configured source")
         try:
             notice = CatalogCacheStore._notice_from_payload(raw)
         except (KeyError, TypeError, ValueError) as exc:

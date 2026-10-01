@@ -684,6 +684,7 @@ class WebPushNotifier:
             requested = next(source for source in selected if source.id == normalized["source_id"])
             if requested.collection_root:
                 selected = [source for source in selected if source.collection_id == requested.collection_id
+                            or requested.collection_id in getattr(source, "related_collections", ())
                             or (getattr(source, "shared_with_ward", False) and getattr(source, "ward", None) == getattr(requested, "ward", None))]
             else:
                 selected = [requested]
@@ -765,7 +766,9 @@ class WebPushNotifier:
             return
         current = {notice.id: notice.to_summary() for result in results for notice in result.notices if getattr(notice, "coverage_kind", "notices") != "reference"}
         # A successful empty scan still establishes this source's baseline.
-        source_ids = {result.source.id for result in results}
+        source_keys = {result.source.id: result.source.id + (
+            ":" + result.source.notification_revision if getattr(result.source, "notification_revision", "") else "") for result in results}
+        source_ids = set(source_keys.values())
         records = [record for record in self.store.subscriptions() if record.get("scope") == scope and _active(record)]
         for record in records:
             try:
@@ -796,7 +799,7 @@ class WebPushNotifier:
             # items once per healthy source, but keep known pending IDs pending,
             # including IDs that reappear only after a failed source recovers.
             accepted.update(notice_id for notice_id, notice in current.items()
-                            if notice["source_id"] in newly_covered and notice_id not in previous_known)
+                            if source_keys[notice["source_id"]] in newly_covered and notice_id not in previous_known)
             pending = [notice for notice_id, notice in current.items() if notice_id not in accepted]
             if pending:
                 if not self.sending_enabled or not self.store.is_current(record):

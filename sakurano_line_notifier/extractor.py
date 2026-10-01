@@ -174,36 +174,77 @@ def extract_document_text(payload: bytes, content_type: str = "", url: str = "")
             raise ExtractionError(f"document contains no readable HTML text: {url}")
         return text
 
+    from .pdf_ocr import MAX_PDF_BYTES, MAX_PDF_PAGES, MAX_TEXT_CHARACTERS, PdfOcrError, extract_pdf_ocr_pages
+
+    if len(payload) > MAX_PDF_BYTES:
+        raise ExtractionError("PDF exceeds byte safety limit")
     try:
         from pypdf import PdfReader
 
         reader = PdfReader(io.BytesIO(payload))
-        if reader.is_encrypted or len(reader.pages) > 50:
+        if reader.is_encrypted or len(reader.pages) > MAX_PDF_PAGES:
             raise ExtractionError("encrypted PDFs or PDFs over 50 pages are not supported")
         pages = []
+        unread_pages = []
         characters = 0
-        for page in reader.pages:
+        for number, page in enumerate(reader.pages, 1):
             plain_text = page.extract_text() or ""
             text = plain_text
             if _looks_fragmented(plain_text):
                 text = page.extract_text(extraction_mode="layout") or plain_text
             characters += len(text)
-            if characters > 200_000:
+            if characters > MAX_TEXT_CHARACTERS:
                 raise ExtractionError("PDF text exceeds safety limit")
             pages.append(text)
+            if _page_needs_ocr(page, text):
+                unread_pages.append(number)
     except ExtractionError:
         raise
     except Exception as exc:
         raise ExtractionError(f"could not extract PDF text: {url}") from exc
-    text = "\n".join(pages)
-    if not clean_text_lines(text):
-        from .pdf_ocr import PdfOcrError, extract_pdf_ocr
-
+    if unread_pages:
         try:
-            return extract_pdf_ocr(payload, page_count=len(pages))
+            recovered = extract_pdf_ocr_pages(payload, page_count=len(pages), page_numbers=tuple(unread_pages))
         except PdfOcrError as exc:
             raise ExtractionError(f"PDF OCR failed: {exc}: {url}") from exc
+        for number, recovered_text in recovered.items():
+            pages[number - 1] = recovered_text
+    text = "\n".join(pages)
+    if len(text) > MAX_TEXT_CHARACTERS:
+        raise ExtractionError("PDF text exceeds safety limit")
+    if not clean_text_lines(text):
+        raise ExtractionError(f"PDF contains no readable text: {url}")
     return text
+
+
+def _page_needs_ocr(page, text: str) -> bool:
+    compact = "".join(clean_text_lines(text))
+    # A short number/date/page label cannot establish that an accompanying
+    # image was read. Require painting evidence; standalone numbers are valid
+    # native text. Character count alone is not evidence of an unread body.
+    numeric_only = re.fullmatch(r"[\d\s.,/():\-–—]{1,32}", compact) is not None
+    if compact and not numeric_only:
+        if len(compact) >= 200:
+            return False
+        # Some public newsletters retain only the masthead as native text;
+        # thousands of vector segments draw the body glyphs (e.g. Seishi).
+        # This conservative fallback requires BOTH sparse text and dense
+        # painted paths, not merely a short body or an accompanying photo.
+        content = page.get_contents()
+        operations = getattr(content, "operations", ())
+        if not isinstance(operations, (list, tuple)):
+            return False
+        segments = sum(op in {b"m", b"l", b"c", b"v", b"y"} for _, op in operations)
+        return segments >= 1000 and any(op in {b"f", b"F", b"f*", b"B", b"B*", b"b", b"b*"} for _, op in operations)
+    content = page.get_contents()
+    annotations = bool(page.get("/Annots"))
+    if not compact:
+        # A missing/empty content stream with no annotation cannot paint a
+        # notice. Other textless pages must be rasterized, including vectors,
+        # inline images and nested Form XObjects (without decoding images here).
+        return annotations or (content is not None and bool(content.get_data().strip()))
+    paint = {b"Do", b"INLINE IMAGE", b"sh", b"S", b"s", b"f", b"F", b"f*", b"B", b"B*", b"b", b"b*"}
+    return annotations or (content is not None and any(op in paint for _, op in content.operations))
 
 
 def _looks_fragmented(text: str) -> bool:

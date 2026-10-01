@@ -473,6 +473,24 @@ class ScannerSecurityTests(unittest.TestCase):
         self.notifier.scan_subscriptions()
         self.notifier._send.assert_called_once()
 
+    def test_expanded_source_revision_baselines_archive_without_dropping_pending(self):
+        self.subscribe()
+        self.scan("old")
+        self.notifier._send.side_effect = RuntimeError("provider failure")
+        self.scan("old", "pending")
+        self.notifier._send.reset_mock(side_effect=True)
+        expanded = result("old", "pending", "newly-discovered-archive")
+        expanded.source.notification_revision = "coverage-v2"
+        self.catalog.get_many.return_value = [expanded]
+        self.notifier.scan_subscriptions()
+        self.notifier._send.assert_called_once()
+        ledger = self.notifier.store.subscriptions()[0]["delivery_state"]
+        self.assertEqual(set(ledger["accepted_ids"]), {"old", "pending", "newly-discovered-archive"})
+        self.assertIn("school:coverage-v2", ledger["source_ids"])
+        self.notifier._send.reset_mock()
+        self.notifier.scan_subscriptions()
+        self.notifier._send.assert_not_called()
+
     def test_facility_reference_changes_do_not_send_notifications(self):
         self.subscribe()
         self.scan("old")
