@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import json
 import tempfile
+import threading
+import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 
 from sakurano_line_notifier.fetcher import LinkCandidate
-from sakurano_line_notifier.web_catalog import CatalogService, _date_labels, _parse_source, load_sources
+from sakurano_line_notifier.web_catalog import CatalogResult, CatalogService, _date_labels, _parse_source, load_sources
 from sakurano_line_notifier.web_push import PushSubscriptionError, SQLitePushSubscriptionStore, normalize_push_scope
+from sakurano_line_notifier.web_server import _RequestRateLimiter
 
 
 class SourceRegistryTests(unittest.TestCase):
@@ -161,3 +166,50 @@ class CatalogPayloadTests(unittest.TestCase):
             copy = Path(directory) / "sources.json"
             copy.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
             self.assertEqual(len(load_sources(copy)), len(payload["sources"]))
+
+
+class CatalogConcurrencyTests(unittest.TestCase):
+    def test_simultaneous_all_source_requests_share_scan_futures(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            registry = Path(directory) / "sources.json"
+            registry.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "sources": [
+                            {"id": "one", "name": "One", "ward": "武蔵野市", "level": "小学校", "page_url": "https://example.test/one", "mode": "static", "static_text": "one"},
+                            {"id": "two", "name": "Two", "ward": "武蔵野市", "level": "小学校", "page_url": "https://example.test/two", "mode": "static", "static_text": "two"},
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            service = CatalogService(SimpleNamespace(web_cache_ttl_seconds=300, web_catalog_max_wait_seconds=2), registry)
+            calls: dict[str, int] = {"one": 0, "two": 0}
+            calls_lock = threading.Lock()
+
+            def fake_get_source(source_id: str, grade: str | None = None, refresh: bool = False) -> CatalogResult:
+                with calls_lock:
+                    calls[source_id] += 1
+                time.sleep(0.05)
+                source = next(item for item in service.sources if item.id == source_id)
+                return CatalogResult(source, grade or source.default_grade, "2026-10-01T00:00:00+00:00", ())
+
+            service.get_source = fake_get_source  # type: ignore[method-assign]
+            try:
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    first = executor.submit(service.get_many, source_id="all", grade="全学年")
+                    second = executor.submit(service.get_many, source_id="all", grade="全学年")
+                    first.result()
+                    second.result()
+                self.assertEqual(calls, {"one": 1, "two": 1})
+            finally:
+                service.close()
+
+    def test_expensive_mutation_endpoints_have_a_small_request_limit(self) -> None:
+        limiter = _RequestRateLimiter()
+        self.assertTrue(limiter.allow("127.0.0.1", "refresh", 1, 60)[0])
+        allowed, retry_after = limiter.allow("127.0.0.1", "refresh", 1, 60)
+        self.assertFalse(allowed)
+        self.assertGreaterEqual(retry_after, 1)

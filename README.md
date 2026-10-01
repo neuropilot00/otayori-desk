@@ -74,7 +74,7 @@ railway domain
 
 도쿄 23구 전체를 한 번에 다 긁는 것으로 가장하지 않았습니다. 학교마다 CMS와 링크 형식이 달라, 실제 페이지·링크를 확인한 학교만 베타에 넣고 `sources.json`에 소스별 수집 방식을 명시합니다. 현재는 지인이 많은 무사시노시를 우선해 시립 초등학교 12곳과 학동 12개 학구를 등록했습니다. 새 학교를 추가할 때는 `id`, `name`, `ward`, `level`, `page_url` 또는 여러 페이지를 묶는 `page_urls`, `mode`를 넣고, 필요하면 `include_patterns`와 `exclude_patterns`를 조정합니다. HTML 뉴스형 학교는 `mode: "html_news"`를 사용합니다. 한 학교의 학교 홈페이지·学年だより·행사 페이지가 서로 분리되어 있다면 `page_urls`에 함께 넣어 같은 학교 피드로 합칩니다. 장기적으로는 동일한 스키마를 자치체 단위의 전국 소스 등록·검증 파이프라인으로 확장합니다.
 
-웹 베타는 현재 메모리 캐시(5분)를 사용합니다. `今すぐ更新`은 캐시를 기다리지 않고 실제 공개 페이지를 다시 확인하며, 자동 확인은 캐시 만료 후 다음 접근 시 수행됩니다. 여러 학교를 한 번에 조회할 때는 `WEB_CATALOG_MAX_WAIT_SECONDS`(기본 12초) 안에 완료된 소스부터 부분 응답하고 늦은 소스는 캐시에 계속 반영합니다. 부모 화면이 한 학교의 느린 PDF 때문에 멈추지 않게 하는 운영 경계입니다. 소스별 좌표는 지도/앱 전환용 메타데이터이며 위치 권한 없이는 읽지 않습니다.
+웹 베타는 현재 메모리 캐시(5분)를 사용합니다. 서버는 `WEB_CATALOG_REFRESH_INTERVAL_SECONDS`(기본 15분)마다 공개 소스를 백그라운드에서 갱신해 방문자가 없는 시간에도 최신 상태를 준비합니다. `今すぐ更新`은 캐시를 기다리지 않고 실제 공개 페이지를 다시 확인하며, 여러 학교를 한 번에 조회할 때는 `WEB_CATALOG_MAX_WAIT_SECONDS`(기본 12초) 안에 완료된 소스부터 부분 응답하고 늦은 소스는 공유 수집 작업으로 계속 캐시에 반영합니다. 요청마다 같은 PDF 수집 작업을 중복 생성하지 않으며, 부모 화면이 한 학교의 느린 PDF 때문에 멈추지 않게 하는 운영 경계입니다. 소스별 좌표는 지도/앱 전환용 메타데이터이며 위치 권한 없이는 읽지 않습니다.
 
 ### 브라우저 알림과 앱 전환
 
@@ -95,6 +95,8 @@ Railway에서는 `WEB_PUSH_DATABASE_PATH`를 영속 볼륨 경로로 지정하�
 | `WEB_PUSH_DATABASE_URL` | 다중 인스턴스용 PostgreSQL URL. 비밀값으로만 설정 |
 | `WEB_PUSH_STATE_PATH` | JSON fallback 예: `state/push_subscriptions.json` |
 | `WEB_PUSH_SCAN_INTERVAL_SECONDS` | 새 소식 확인 주기. 기본 900초 |
+| `WEB_CATALOG_REFRESH_INTERVAL_SECONDS` | 백그라운드 공개 소스 갱신 주기. 기본 900초 |
+| `WEB_CATALOG_MAX_WAIT_SECONDS` | 한 API 응답이 기다리는 최대 소스 확인 시간. 기본 12초 |
 
 ### 장기 확장과 보안 경계
 
@@ -102,6 +104,7 @@ Railway에서는 `WEB_PUSH_DATABASE_PATH`를 영속 볼륨 경로로 지정하�
 - 보호자별로 변하는 구독과 중복 발송 기준선은 DB에만 저장합니다. 구독 endpoint·키는 SQLite 파일 권한을 제한하고, PostgreSQL 전환 시에도 파라미터 바인딩으로만 저장합니다.
 - Push scope는 등록된 `source_id`, 학년, 피드, 발신처 그룹만 허용합니다. HTTPS endpoint, 본문 크기, 키 길이를 검증하고 공개 원문 페이지 외의 비공개 `保護者連絡帳` 자료는 수집하지 않습니다.
 - 공개 API는 비밀키를 반환하지 않으며 `Cache-Control: no-store`, CSP, `X-Content-Type-Options`, 제한된 Referrer 정책을 사용합니다. 새 학교 등록은 코드 수정 없이 레지스트리 검증 후 추가할 수 있습니다.
+- 비용이 큰 `今すぐ更新`과 브라우저 구독 등록에는 IP별 요청 제한을 두고, 다중학교 PDF 수집은 서버 내부의 고정 worker와 in-flight 중복 제거로 제한합니다. 상용 다중 레플리카 단계에서는 이 worker를 별도 수집 작업으로 분리하고 공유 PostgreSQL/queue를 연결합니다.
 - 웹앱은 PWA로 먼저 제공하고, 나중에 iOS/Android 앱은 같은 `/api/config`, `/api/notices`, `/api/push` 계약과 좌표·소스 ID를 사용합니다. 네이티브 알림 토큰만 별도 어댑터로 추가하면 됩니다.
 
 ## LINE 자동화

@@ -5,7 +5,7 @@ import re
 import threading
 import time
 import unicodedata
-from concurrent.futures import ThreadPoolExecutor, as_completed, wait
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed, wait
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html import unescape
@@ -519,6 +519,10 @@ class CatalogService:
         self._cache_ttl_seconds = max(30.0, float(getattr(settings, "web_cache_ttl_seconds", 300.0)))
         self._max_wait_seconds = min(60.0, max(1.0, float(getattr(settings, "web_catalog_max_wait_seconds", 12.0))))
         self._lock = threading.RLock()
+        self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="catalog-scan")
+        self._inflight: dict[tuple[str, str], Future[CatalogResult]] = {}
+        self._refresh_stop = threading.Event()
+        self._refresh_thread: threading.Thread | None = None
 
     def source_options(self) -> list[dict[str, Any]]:
         return [source.to_dict() for source in self.sources if source.enabled and source.collection_root]
@@ -526,6 +530,42 @@ class CatalogService:
     @property
     def cache_ttl_seconds(self) -> int:
         return int(self._cache_ttl_seconds)
+
+    def start_background_refresh(self, interval_seconds: float = 900.0) -> None:
+        """Keep the public catalog warm without making parents wait for upstream PDFs."""
+        interval = max(60.0, float(interval_seconds))
+        with self._lock:
+            if self._refresh_thread is not None:
+                return
+            self._refresh_stop.clear()
+            self._refresh_thread = threading.Thread(
+                target=self._refresh_loop,
+                args=(interval,),
+                name="catalog-refresh",
+                daemon=True,
+            )
+            self._refresh_thread.start()
+
+    def stop_background_refresh(self) -> None:
+        self._refresh_stop.set()
+        thread = self._refresh_thread
+        if thread is not None:
+            thread.join(timeout=2)
+        self._refresh_thread = None
+
+    def close(self) -> None:
+        self.stop_background_refresh()
+        self._executor.shutdown(wait=False, cancel_futures=True)
+
+    def _refresh_loop(self, interval_seconds: float) -> None:
+        while not self._refresh_stop.is_set():
+            try:
+                self.get_many(source_id="all", refresh=True)
+            except Exception:
+                # A single source must not stop the catalog refresh loop.
+                pass
+            if self._refresh_stop.wait(interval_seconds):
+                return
 
     def get_source(self, source_id: str, grade: str | None = None, refresh: bool = False) -> CatalogResult:
         source = self._source_by_id(source_id)
@@ -576,23 +616,25 @@ class CatalogService:
 
         results: dict[str, CatalogResult] = {}
         errors: list[str] = []
-        executor = ThreadPoolExecutor(max_workers=min(4, len(selected)))
-        futures = {executor.submit(self.get_source, source.id, grade, refresh): source for source in selected}
-        done, not_done = wait(futures, timeout=self._max_wait_seconds)
+        futures = {
+            source.id: self._submit_source(source, grade, refresh)
+            for source in selected
+            if not self._cached_result(source, grade, refresh, results)
+        }
+        future_sources = {future: next(source for source in selected if source.id == source_id) for source_id, future in futures.items()}
+        done, not_done = wait(future_sources, timeout=self._max_wait_seconds)
         for future in done:
-            source = futures[future]
+            source = future_sources[future]
             try:
                 results[source.id] = future.result()
-            except (CatalogError, FetchError, ExtractionError) as exc:
-                errors.append(f"{source.name}: {exc}")
+            except Exception as exc:
+                errors.append(f"{source.name}: {exc.__class__.__name__}")
         for future in not_done:
-            source = futures[future]
-            future.cancel()
+            source = future_sources[future]
             errors.append(f"{source.name}: source check exceeded {int(self._max_wait_seconds)} seconds")
-        # Do not make the parent request wait for slow upstream PDFs. Running
-        # tasks may still finish and populate the in-memory cache for the next
-        # request, while queued tasks are cancelled where possible.
-        executor.shutdown(wait=False, cancel_futures=True)
+        # Do not cancel shared futures: another request or the background
+        # refresher may be using the same scan. Completed results populate the
+        # cache for the next request.
         ordered = [results[source.id] for source in selected if source.id in results]
         if not ordered:
             if not_done:
@@ -608,6 +650,40 @@ class CatalogService:
             first = ordered[0]
             ordered[0] = CatalogResult(first.source, first.grade, first.scanned_at, first.notices, tuple(warning_results))
         return ordered
+
+    def _cached_result(
+        self,
+        source: SourceConfig,
+        grade: str | None,
+        refresh: bool,
+        results: dict[str, CatalogResult],
+    ) -> bool:
+        if refresh:
+            return False
+        effective_grade = self._effective_grade(source, grade)
+        with self._lock:
+            cached = self._cache.get((source.id, effective_grade))
+            if cached and time.monotonic() - cached[0] < self._cache_ttl_seconds:
+                results[source.id] = cached[1]
+                return True
+        return False
+
+    def _submit_source(self, source: SourceConfig, grade: str | None, refresh: bool) -> Future[CatalogResult]:
+        effective_grade = self._effective_grade(source, grade)
+        key = (source.id, effective_grade)
+        with self._lock:
+            current = self._inflight.get(key)
+            if current is not None and not current.done():
+                return current
+            future = self._executor.submit(self.get_source, source.id, grade, refresh)
+            self._inflight[key] = future
+            future.add_done_callback(lambda completed, key=key: self._clear_inflight(key, completed))
+            return future
+
+    def _clear_inflight(self, key: tuple[str, str], future: Future[CatalogResult]) -> None:
+        with self._lock:
+            if self._inflight.get(key) is future:
+                self._inflight.pop(key, None)
 
     def find_notice(
         self,

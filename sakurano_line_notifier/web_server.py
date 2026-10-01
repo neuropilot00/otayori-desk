@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import threading
+import time
+from collections import deque
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,6 +20,30 @@ class _BetaHTTPServer(ThreadingHTTPServer):
         super().__init__(address, handler)
         self.catalog = catalog
         self.push_notifier = push_notifier
+        self.rate_limiter = _RequestRateLimiter()
+
+
+class _RequestRateLimiter:
+    """Small per-process guard for expensive public mutation endpoints."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._hits: dict[tuple[str, str], deque[float]] = {}
+
+    def allow(self, client_key: str, bucket: str, limit: int, window_seconds: float) -> tuple[bool, int]:
+        now = time.monotonic()
+        key = (client_key, bucket)
+        with self._lock:
+            hits = self._hits.setdefault(key, deque())
+            while hits and now - hits[0] >= window_seconds:
+                hits.popleft()
+            if len(hits) >= limit:
+                retry_after = max(1, int(window_seconds - (now - hits[0])))
+                return False, retry_after
+            hits.append(now)
+            if len(self._hits) > 2048:
+                self._hits = {item: values for item, values in self._hits.items() if values}
+            return True, 0
 
 
 class BetaRequestHandler(BaseHTTPRequestHandler):
@@ -52,6 +79,10 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         parsed = urlparse(self.path)
         if parsed.path == "/api/push/subscribe":
+            allowed, retry_after = self.server.rate_limiter.allow(self._client_key(), "push-subscribe", 10, 600)
+            if not allowed:
+                self._send_json({"error": "too many subscription requests"}, status=HTTPStatus.TOO_MANY_REQUESTS, retry_after=retry_after)
+                return
             try:
                 if not self.server.push_notifier:
                     raise PushSubscriptionError("push is not configured")
@@ -68,6 +99,10 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             return
         if parsed.path != "/api/refresh":
             self._send_json({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
+            return
+        allowed, retry_after = self.server.rate_limiter.allow(self._client_key(), "refresh", 6, 60)
+        if not allowed:
+            self._send_json({"error": "too many refresh requests"}, status=HTTPStatus.TOO_MANY_REQUESTS, retry_after=retry_after)
             return
         try:
             self._send_json(self._notices_payload(parse_qs(parsed.query), force_refresh=True))
@@ -162,6 +197,9 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
         values = query.get(key, [])
         return values[0].strip() if values and values[0].strip() else None
 
+    def _client_key(self) -> str:
+        return str(self.client_address[0] or "unknown")
+
     def _effective_source_id(self, query: dict[str, list[str]], level: str | None, ward: str | None, source_group: str | None = None) -> str:
         requested = self._query_value(query, "source_id")
         if requested in {"all", "*"}:
@@ -211,13 +249,15 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             return
 
-    def _send_json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
+    def _send_json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK, retry_after: int | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         try:
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
+            if retry_after is not None:
+                self.send_header("Retry-After", str(retry_after))
             self._send_security_headers()
             self.end_headers()
             self.wfile.write(body)
@@ -237,6 +277,7 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
 def run_server(catalog: CatalogService, host: str = "127.0.0.1", port: int = 8765, settings: Any | None = None) -> None:
     push_notifier = WebPushNotifier(catalog, settings) if settings is not None else None
     server = _BetaHTTPServer((host, port), BetaRequestHandler, catalog, push_notifier)
+    catalog.start_background_refresh(getattr(settings, "web_catalog_refresh_interval_seconds", 900.0) if settings is not None else 900.0)
     if push_notifier:
         push_notifier.start()
     print(f"school-news-beta listening at http://{host}:{port}", flush=True)
@@ -247,4 +288,5 @@ def run_server(catalog: CatalogService, host: str = "127.0.0.1", port: int = 876
     finally:
         if push_notifier:
             push_notifier.stop()
+        catalog.close()
         server.server_close()
