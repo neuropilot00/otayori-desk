@@ -295,7 +295,10 @@ class CatalogCacheStore:
             if payload.get("source_fingerprint") != self._source_fingerprint(source):
                 return None
             notices = tuple(self._notice_from_payload(item) for item in payload.get("notices", []))
-            return CatalogResult(source, grade, str(payload["scanned_at"]), notices, tuple(str(item) for item in payload.get("warnings", [])), int(payload.get("discovered_count", len(notices))), bool(payload.get("limit_reached", False)))
+            freshness = payload.get("freshness_status", "fresh")
+            if freshness not in {"fresh", "stale", "pending", "unknown"}:
+                return None
+            return CatalogResult(source, grade, str(payload["scanned_at"]), notices, tuple(str(item) for item in payload.get("warnings", [])), int(payload.get("discovered_count", len(notices))), bool(payload.get("limit_reached", False)), freshness_status=freshness)
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             return None
 
@@ -310,6 +313,7 @@ class CatalogCacheStore:
                 "warnings": list(result.warnings),
                 "discovered_count": result.discovered_count,
                 "limit_reached": result.limit_reached,
+                "freshness_status": result.freshness_status,
                 "notices": [notice.to_detail() for notice in result.notices],
             },
             ensure_ascii=False,
@@ -947,7 +951,10 @@ class CatalogService:
                 result = replace(result, notices=tuple(notice for notice in result.notices if notice.url not in retained_urls) + retained, warnings=result.warnings + ("一部は前回取得した情報です。原文で最新情報を確認してください。",), freshness_status="stale")
         with self._lock:
             self._cache[key] = (time.monotonic(), result)
-        if self._cache_store and not result.warnings:
+        # Preserve discovered original links across restarts too. Failure
+        # warnings/readability/freshness travel with the snapshot; this is not
+        # an OCR success cache or a notification-success record.
+        if self._cache_store and result.notices:
             self._cache_store.save(result)
         return result
 
@@ -1002,10 +1009,16 @@ class CatalogService:
             selected = [source for source in selected if source.source_group == source_group]
         if not selected:
             raise CatalogError("no enabled source matches the requested filters")
+        # Cold-start background work must not put the default family's related
+        # pages behind every other school's PDFs. Return order remains unchanged.
+        default_collection = next((source.collection_id for source in self.sources if source.enabled and source.collection_root), "")
+        scan_order = sorted(selected, key=lambda source: not (
+            source.collection_id == default_collection or default_collection in source.related_collections
+        ))
         results: dict[str, CatalogResult] = {}
         futures = {
             source.id: self._submit_source(source, grade, refresh)
-            for source in selected
+            for source in scan_order
             if not self._cached_result(source, grade, refresh, results)
         }
         future_sources = {future: next(source for source in selected if source.id == source_id) for source_id, future in futures.items()}

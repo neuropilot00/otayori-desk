@@ -4,7 +4,7 @@ import json
 import tempfile
 import time
 import unittest
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -55,6 +55,38 @@ class CatalogFreshnessTests(unittest.TestCase):
         self.assertEqual(result.notices, original.notices)
         self.assertTrue(result.warnings)
 
+    def test_partial_readable_snapshot_keeps_stale_marker_after_restart(self):
+        original = self.service.get_source("one", "1年生")
+        self.service._scan_source = Mock(return_value=replace(original, notices=(), warnings=("PDF failure",)))
+        partial = self.service.get_source("one", "1年生", refresh=True)
+        self.service.close()
+        self.service = CatalogService(self.settings, self.registry)
+        restored = self.service._last_cached(partial.source, partial.grade)[1]
+        self.assertEqual(restored.notices, original.notices)
+        self.assertEqual(restored.warnings, partial.warnings)
+        self.assertEqual(restored.coverage()["freshness_status"], "stale")
+        self.assertEqual(restored.coverage()["issue_codes"], ["stale"])
+
+    def test_original_only_link_and_failure_survive_restart_without_readable_credit(self):
+        original = self.service.get_source("one", "1年生")
+        failed = replace(original, grade="2年生", notices=(replace(original.notices[0], grade="2年生", extraction_status="original_only", text="本文未確認"),), warnings=("OCR failed",))
+        self.service._scan_source = Mock(return_value=failed)
+        result = self.service.get_source("one", "2年生", refresh=True)
+        self.assertEqual(result.coverage()["readable_count"], 0)
+        self.service.close()
+        self.service = CatalogService(self.settings, self.registry)
+        restored = self.service._last_cached(failed.source, failed.grade)[1]
+        self.assertEqual(restored.notices[0].url, failed.notices[0].url)
+        self.assertEqual(restored.warnings, failed.warnings)
+        self.assertEqual(restored.coverage()["readable_count"], 0)
+        self.assertEqual(restored.coverage()["issue_codes"], ["extraction"])
+
+    def test_empty_failure_does_not_create_a_successful_persistent_snapshot(self):
+        original = self.service.get_source("one", "1年生")
+        self.service._scan_source = Mock(return_value=replace(original, grade="2年生", notices=(), warnings=("failed",)))
+        result = self.service.get_source("one", "2年生", refresh=True)
+        self.assertIsNone(self.service._cache_store.load(result.source, result.grade))
+
     def test_changed_registry_invalidates_persistent_content(self):
         original = self.service.get_source("one", "1年生")
         changed = replace(original.source, page_url="https://school.example/new", static_text="new")
@@ -72,6 +104,24 @@ class CatalogFreshnessTests(unittest.TestCase):
             for request in requests:
                 request.result()
         self.assertEqual(scanner.call_count, 1)
+
+    def test_background_scan_prioritizes_default_family_without_changing_response_order(self):
+        original = self.service.get_source("one", "1年生")
+        root = original.source
+        unrelated = replace(root, id="other", collection_id="other")
+        related = replace(root, id="club", collection_id="club", related_collections=(root.collection_id,), collection_root=False)
+        self.service.sources = (root, unrelated, related)
+        submitted = []
+        def submit(source, *_):
+            submitted.append(source.id)
+            future = Future()
+            future.set_result(replace(original, source=source))
+            return future
+        self.service._cached_result = Mock(return_value=False)
+        self.service._submit_source = submit
+        results = self.service.get_many(source_id="all", refresh=True)
+        self.assertEqual(submitted, ["one", "club", "other"])
+        self.assertEqual([result.source.id for result in results], ["one", "other", "club"])
 
 
 if __name__ == "__main__":
