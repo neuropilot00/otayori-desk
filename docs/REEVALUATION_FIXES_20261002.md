@@ -17,7 +17,14 @@
 
 ## Release acceptance
 
-Deployment and real mobile refresh verification must be recorded after the release. Do not treat unit-test results as deployed acceptance.
+- App commit: `3501af12ed39db75e6c344917c9b985d69f6291a` pushed to `main`.
+- [GitHub CI 36967499352](https://github.com/neuropilot00/otayori-desk/actions/runs/36967499352): both jobs passed (312 Python + 61 JavaScript tests; dependency audit found no known vulnerabilities).
+- Railway deployment `f9411907-d4ac-4d67-83db-0deeccde740b`: SUCCESS. Production `/api/ready` returned 200 and `{"ok":true,"mode":"free_beta"}`.
+- Production and local `app.js` SHA-256 matched: `40a6a5cfcefebffd9785851c90ca39a369742c19435c8764dee080aaad25f15a`.
+- Real production browser at 390px: opened notice `94cb4a5e619c78808d99`, selected Korean, opened parent guidance and closed preparation, then clicked refresh. The card remained expanded while loading and after the response; full reader text and all three category states matched before/after. No loading panel replaced the list. The refresh button returned to enabled.
+- Repeated card click collapsed it (zero expanded cards); a further click reopened it. At 320px the document width equalled the viewport width; no horizontal overflow. Browser warning/error log was empty.
+- Production all-source API confirmed **21/21 scheduled sources fresh**, no issue codes, with check times `2026-10-02T04:58:06.443374+00:00`–`2026-10-02T04:58:10.946332+00:00`.
+- The deployed startup log correctly reports `catalog_recovery_disabled`. A 30-day, one-repository, Actions read/write token form is prepared in the already-authenticated Chrome session; token issuance and Railway secret storage remain unperformed pending explicit approval. GitHub CLI and Chrome login are working. The Code-in-app browser has a separate logged-out session; another login is not required.
 
 ## Boundaries
 
