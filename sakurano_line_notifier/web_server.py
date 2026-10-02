@@ -144,7 +144,7 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/internal/catalog":
             self._receive_catalog_snapshot()
             return
-        if parsed.path not in {"/api/push/subscribe", "/api/push/unsubscribe", "/api/privacy/delete", "/api/refresh"}:
+        if parsed.path not in {"/api/push/subscribe", "/api/push/unsubscribe", "/api/push/test", "/api/privacy/delete", "/api/refresh"}:
             self._send_json({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
             return
         if not self._same_origin():
@@ -168,6 +168,27 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"ok": True, "device_only": True})
             except PushSubscriptionError as exc:
                 self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            except Exception as exc:
+                self._server_error(exc)
+            return
+        if parsed.path == "/api/push/test":
+            try:
+                payload = self._read_json_body()
+                owner = self._owner_hash()
+                if not owner:
+                    self._send_json({"error": "device registration required"}, status=HTTPStatus.FORBIDDEN)
+                    return
+                for key, limit in ((self._client_key(), 5), (owner, 1)):
+                    allowed, retry_after = self.server.rate_limiter.allow(key, "push-test", limit, 60)
+                    if not allowed:
+                        self._send_json({"error": "please retry later"}, status=HTTPStatus.TOO_MANY_REQUESTS, retry_after=retry_after)
+                        return
+                if not self.server.push_notifier:
+                    raise PushSubscriptionError("push is not configured")
+                result = self.server.push_notifier.test_subscription(owner, payload.get("endpoint"))
+                self._send_json(result)
+            except PushSubscriptionError:
+                self._send_json({"error": "test notification unavailable"}, status=HTTPStatus.BAD_REQUEST)
             except Exception as exc:
                 self._server_error(exc)
             return

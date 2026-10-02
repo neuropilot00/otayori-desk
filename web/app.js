@@ -97,6 +97,11 @@ const I18N = {
   },
 };
 
+Object.assign(I18N.ja, { "translation.open": "Google翻訳で読む", "translation.note": "押すと公開本文をGoogleに送り、別画面で機械翻訳します。複数ある場合は全パートをご確認ください。日付・条件は原文も確認してください。", "extraction.note": "本文は機械抽出です。読み違い・抜けがあるため、日付や持ち物は公式原文もご確認ください。", "extraction.missing": "本文を確認できていないため、翻訳は利用できません。公式の原文を開いてご確認ください。" });
+Object.assign(I18N.ko, { "translation.open": "Google 번역으로 읽기", "translation.note": "누르면 공개 본문을 Google에 보내 별도 화면에서 기계 번역합니다. 여러 부분이면 모두 확인하세요. 날짜·조건은 원문도 확인하세요.", "extraction.note": "자동 추출한 본문에는 오독·누락이 있을 수 있습니다. 날짜·준비물은 공식 원문도 확인하세요.", "extraction.missing": "본문을 확인하지 못해 번역을 제공할 수 없습니다. 공식 원문을 열어 확인하세요." });
+Object.assign(I18N.en, { "translation.open": "Read in Google Translate", "translation.note": "Opens Google in a new window and sends the public text for machine translation. Read every part if split. Check dates and conditions against the original.", "extraction.note": "Automatically extracted text may contain errors or omissions. Check dates and supplies against the official original.", "extraction.missing": "The body could not be verified, so translation is unavailable. Please open the official original." });
+Object.assign(I18N.zh, { "translation.open": "用Google翻译阅读", "translation.note": "点击后将公开正文发送给Google，在新窗口中机器翻译。如有多个部分，请全部阅读。日期和条件请同时核对原文。", "extraction.note": "自动提取的正文可能有误读或遗漏。日期和携带物品请同时核对官方原文。", "extraction.missing": "尚未确认正文，无法提供翻译。请打开官方原文查看。" });
+
 const LABEL_KEYS = {
   "入会・制度案内": "kind.gakudo_admissions", "学童の施設案内": "kind.gakudo_facility", "あそべえの利用案内": "kind.asobee_reference", "あそべえだより": "kind.asobee_letter", "学童の生活連絡": "kind.gakudo_daily", "学童・あそべえ": "groups.afterSchool",
   "学年だより": "kind.grade", "学校だより": "kind.school", "学童クラブ": "kind.afterSchool", "市・教育委員会": "kind.city", "関連資料": "kind.related",
@@ -598,7 +603,7 @@ function noticeSections(notices, feed = state.feed, today = japanToday()) {
   return { active: dated.slice(0, 1), archive: dated.slice(1), undated: groups.find((group) => group.key === "unknown")?.items || [], references, total: updates.length };
 }
 
-function renderNotices(payload) {
+function renderNotices(payload, { showInline = false } = {}) {
   state.payload = payload;
   state.notices = payload.notices || [];
   const list = $("notice-list");
@@ -629,19 +634,56 @@ function renderNotices(payload) {
     renderPlaceholder();
     return;
   }
-  selectNotice(selectedStillVisible ? state.selectedId : firstVisible.id, { showInline: false });
+  selectNotice(selectedStillVisible ? state.selectedId : firstVisible.id, { showInline: showInline && selectedStillVisible });
 }
 
 function renderPlaceholder() {
   $("detail-panel").innerHTML = `<div class="detail-placeholder"><div class="placeholder-mark" aria-hidden="true">お</div><p class="eyebrow">${escapeHtml(t("detail.eyebrow"))}</p><h3>${t("detail.placeholderTitle")}</h3><p>${escapeHtml(t("empty.body"))}</p></div>`;
 }
 
+function translationParts(text) {
+  // Bound both Google's input size and URL size without dropping whitespace or
+  // breaking Unicode characters. Prefer paragraph/sentence boundaries.
+  const parts = [];
+  let remaining = Array.from(text);
+  while (remaining.length) {
+    let count = 0, encoded = 0, boundary = 0;
+    while (count < remaining.length && count < 4500) {
+      const size = encodeURIComponent(remaining[count]).replaceAll("'", "%27").length;
+      if (encoded + size > 6000) break;
+      encoded += size;
+      count++;
+      if (/[\n。！？.!?]/u.test(remaining[count - 1])) boundary = count;
+    }
+    if (count < remaining.length && boundary > count / 2) count = boundary;
+    parts.push(remaining.slice(0, count).join(""));
+    remaining = remaining.slice(count);
+  }
+  return parts;
+}
+
+function translationMarkup(notice) {
+  const target = { ko: "ko", en: "en", zh: "zh-CN" }[state.language];
+  if (!target || notice.extraction_status === "original_only" || !notice.text?.trim()) return "";
+  const parts = translationParts(`${notice.title || ""}\n\n${notice.text}`);
+  const links = parts.map((part, index) => {
+    const encoded = encodeURIComponent(part).replaceAll("'", "%27");
+    const url = `https://translate.google.com/?sl=ja&tl=${target}&text=${encoded}&op=translate`;
+    const label = `${t("translation.open")}${parts.length > 1 ? ` · ${index + 1}/${parts.length}` : ""} ↗`;
+    return `<a class="translation-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+  }).join("");
+  return `<section class="translation-reader"><p class="extraction-note">${escapeHtml(t("translation.note"))}</p><div class="translation-links">${links}</div></section>`;
+}
+
 function detailMarkup(notice) {
   const originalOnly = notice.extraction_status === "original_only";
   const attachmentHtml = (notice.attachments || []).slice(0, 80).map((item) => officialLink(item.url, item.title, "detail-link")).filter(Boolean).map((link) => `<li>${link}</li>`).join("");
-  const categoryHtml = Object.entries(originalOnly ? {} : notice.categories || {}).map(([name, items]) => {
-    const list = items.slice(0, 8).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
-    return `<section class="detail-section"><h4>${escapeHtml(localizeLabel(name))}</h4><ul>${list}</ul></section>`;
+  const categories = Object.entries(originalOnly ? {} : notice.categories || {});
+  const priority = categories.some(([name]) => ["持ち物・準備", "提出物・締切"].includes(name));
+  const categoryHtml = categories.map(([name, items], index) => {
+    const list = items.map((item) => `<li lang="ja">${escapeHtml(item)}</li>`).join("");
+    const open = ["持ち物・準備", "提出物・締切"].includes(name) || (!priority && index === 0);
+    return `<details class="detail-section category-section"${open ? " open" : ""}><summary>${escapeHtml(localizeLabel(name))}</summary><ul>${list}</ul></details>`;
   }).join("");
   return `<div class="detail-content">
     <div class="notice-meta"><span class="pill">${escapeHtml(notice.source_name)}</span><span class="pill group-pill">${escapeHtml(notice.source_group === "after_school" ? t("groups.afterSchool") : localizeLabel(notice.source_group_label || "学校"))}</span><span class="pill soft">${escapeHtml(kindLabel(notice))}</span>${originalOnly ? `<span class="pill extraction-badge">${escapeHtml(t("extraction.unverified"))}</span>` : ""}</div>
@@ -650,7 +692,8 @@ function detailMarkup(notice) {
     ${isReference(notice) ? `<p class="reference-note">${escapeHtml(t("reference.note"))}</p>` : ""}
     ${officialLink(notice.url, t("detail.openOriginal"), "detail-link")}
     ${attachmentHtml ? `<details class="detail-section attachment-links"><summary>${escapeHtml(t("detail.attachments"))}</summary><p class="extraction-note">${escapeHtml(t("detail.attachmentsNote"))}</p><ul>${attachmentHtml}</ul></details>` : ""}
-    <p class="extraction-note" lang="ja">${originalOnly ? "本文は確認できていません。公式の原文を開いてご確認ください。自動抽出（OCRを含む）には読み違い・抜けが生じる場合があります。" : "表示本文は機械による抽出結果です（画像資料ではOCRを使う場合があります）。読み違い・抜けが生じる場合があるため、日付や持ち物は公式の原文でご確認ください。"}</p>
+    <p class="extraction-note">${escapeHtml(t(originalOnly || !notice.text?.trim() ? "extraction.missing" : "extraction.note"))}</p>
+    ${translationMarkup(notice)}
     ${categoryHtml}
     <section class="detail-section"><h4>${escapeHtml(t(originalOnly ? "extraction.unverified" : "detail.original"))}</h4><div class="original-copy" lang="ja">${escapeHtml(notice.text)}</div></section>
   </div>`;
@@ -809,8 +852,9 @@ function setupFeedTabs() {
 function setupLanguage() {
   applyLanguage(state.language);
   $("language-filter").addEventListener("change", (event) => {
+    const showInline = document.querySelectorAll(".notice-card.expanded").length > 0;
     applyLanguage(event.target.value);
-    if (state.payload && !state.loading) renderNotices(state.payload);
+    if (state.payload && !state.loading) renderNotices(state.payload, { showInline });
   });
 }
 
@@ -887,6 +931,7 @@ function updatePushControls() {
   }
   const enable = $("notification-enable");
   if (enable) enable.disabled = state.push.busy || !state.push.ready || !state.config || !$("notification-consent")?.checked;
+  if ($("notification-test")) $("notification-test").disabled = state.push.busy || !state.push.ready || !state.push.subscribed;
   ["notification-unsubscribe", "privacy-delete", "privacy-export"].forEach((id) => {
     if ($(id)) $(id).disabled = state.push.busy;
   });
@@ -977,11 +1022,50 @@ async function enablePushNotifications() {
   }
 }
 
+async function supportsTestNotification(registration) {
+  const worker = registration?.active;
+  if (!worker || worker.state !== "activated") return false;
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const timer = setTimeout(() => finish(false), 2000);
+    const finish = (supported) => {
+      clearTimeout(timer);
+      channel.port1.close(); channel.port2.close();
+      resolve(supported);
+    };
+    channel.port1.onmessage = (event) => finish(event.data?.test_notification === true);
+    try { worker.postMessage({ type: "otayori-push-capabilities" }, [channel.port2]); }
+    catch (_) { finish(false); }
+  });
+}
+
+async function testPushNotification() {
+  if (state.push.busy || !state.push.ready || !state.push.subscribed) return;
+  state.push.busy = true;
+  updatePushControls();
+  pilotStatus("notification-test-status", "testSending");
+  try {
+    const registration = await appPushRegistration();
+    if (!await supportsTestNotification(registration)) throw new Error("worker update required");
+    const subscription = await registration?.pushManager?.getSubscription();
+    if (!subscription) throw new Error("subscription unavailable");
+    const result = await api("/api/push/test", { method: "POST", body: JSON.stringify({ endpoint: subscription.endpoint }) });
+    if (result.provider_accepted !== true || result.delivery_confirmed !== false) throw new Error("test not accepted");
+    pilotStatus("notification-test-status", "testAccepted");
+  } catch (_) {
+    pilotStatus("notification-test-status", "testError");
+  } finally {
+    state.push.busy = false;
+    updatePushControls();
+  }
+}
+
 async function setupPushNotifications() {
   $("notification-button").addEventListener("click", openNotificationSettings);
   $("notification-consent").addEventListener("change", updatePushControls);
   $("notification-enable").addEventListener("click", enablePushNotifications);
   $("notification-unsubscribe").addEventListener("click", unsubscribePushNotifications);
+  $("notification-test").addEventListener("click", testPushNotification);
   $("privacy-export").addEventListener("click", exportDeviceData);
   $("privacy-delete").addEventListener("click", deleteDeviceData);
   state.push.busy = true;

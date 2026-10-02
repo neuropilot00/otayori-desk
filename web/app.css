@@ -249,6 +249,11 @@ body.dark { --bg: #101722; --surface: #182332; --surface-soft: #202d3e; --ink: #
 .policy-content h1 small { font-size: 13px; color: var(--muted); }
 .policy-section { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--line); scroll-margin-top: 14px; }
 .policy-section h2 { margin: 0 0 8px; font-size: 18px; }
+.translation-reader { margin-top: 12px; }
+.translation-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.translation-link { display: inline-flex; align-items: center; min-height: 36px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.category-section > summary { cursor: pointer; font-size: 13px; font-weight: 700; line-height: 1.6; }
+.category-section li { white-space: pre-line; overflow-wrap: anywhere; margin-bottom: 12px; }
 .policy-section p { margin: 8px 0; }
 .policy-section ul { padding-left: 21px; }
 .policy-section li { margin-bottom: 7px; }

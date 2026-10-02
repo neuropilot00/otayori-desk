@@ -31,6 +31,11 @@ Object.assign(PILOT_TEXT.ko, { displayedScope: "표시 중인 조건", storedSco
 Object.assign(PILOT_TEXT.en, { displayedScope: "Displayed filters", storedScope: "Notification filters stored on the server", noScopes: "None registered", scopesUnknown: "Not verified", scopeNote: "Changing displayed filters does not change notifications. Agree again to save the selected filters.", paused: "Notification delivery is paused. New registration and filter saving are disabled.", pausedLabel: "Registered · delivery paused" });
 Object.assign(PILOT_TEXT.zh, { displayedScope: "当前显示条件", storedScope: "服务器保存的通知条件", noScopes: "没有登记", scopesUnknown: "未确认", scopeNote: "更改显示条件不会更改通知条件。请重新同意并保存所选条件。", paused: "通知发送已暂停，无法新登记或保存条件。", pausedLabel: "已登记·发送暂停" });
 
+Object.assign(PILOT_TEXT.ja, { testNotification: "この端末にテスト通知", testSending: "テスト通知を送信中…", testAccepted: "配信サービスが受け付けました。到着はまだ未確認です。この端末の通知欄をご確認ください。届かない場合は端末・ブラウザの通知設定も確認してください。", testError: "送信できませんでした。通知設定を確認し、1分以上待って再試行してください。" });
+Object.assign(PILOT_TEXT.ko, { testNotification: "이 기기로 테스트 알림", testSending: "테스트 알림 전송 중…", testAccepted: "전송 서비스가 접수했습니다. 실제 도착은 아직 확인되지 않았습니다. 이 기기의 알림함을 확인하세요. 없으면 기기·브라우저의 알림 설정도 확인하세요.", testError: "전송하지 못했습니다. 알림 설정을 확인하고 1분 이상 기다린 후 다시 시도하세요." });
+Object.assign(PILOT_TEXT.en, { testNotification: "Test notification on this device", testSending: "Sending a test notification…", testAccepted: "Accepted by the push service; arrival is not yet verified. Check this device's notifications. If nothing arrives, check device and browser notification settings.", testError: "Could not send. Check notification settings and wait at least one minute before retrying." });
+Object.assign(PILOT_TEXT.zh, { testNotification: "向本设备发送测试通知", testSending: "正在发送测试通知…", testAccepted: "推送服务已接受，尚未确认实际送达。请查看本设备通知栏。如未收到，请检查设备和浏览器的通知设置。", testError: "无法发送。请检查通知设置，至少等待一分钟后重试。" });
+
 function pilotText(key) { return PILOT_TEXT[pilotLanguage]?.[key] || PILOT_TEXT.ja[key] || key; }
 
 function applyPilotLanguage(language) {

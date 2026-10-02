@@ -38,7 +38,7 @@ function frontend({ api, timers } = {}) {
     setTimeout: timers?.setTimeout || setTimeout, clearTimeout: timers?.clearTimeout || clearTimeout,
     pilotApi: api || (async () => notice("detail", { text: "日本語の本文" })),
   });
-  vm.runInContext(`${script}\nthis.frontend = { state, I18N, t, noticeSections, noticeDateText, renderNoticeCard, detailMarkup, renderNotices, renderCoverage, renderAfterSchoolScope, coverageStatus, selectNotice, officialLink, japanToday, formatScanTime, loadNotices, queryString, setLoading };`, context);
+  vm.runInContext(`${script}\nthis.frontend = { state, I18N, t, noticeSections, noticeDateText, renderNoticeCard, detailMarkup, translationParts, translationMarkup, renderNotices, renderCoverage, renderAfterSchoolScope, coverageStatus, selectNotice, officialLink, japanToday, formatScanTime, loadNotices, queryString, setLoading };`, context);
   return { ...context.frontend, document, get: (id) => document.getElementById(id) };
 }
 const ids = (items) => Array.from(items, (item) => item.id);
@@ -563,8 +563,7 @@ test("original-only notices retain their link and explanation without presenting
     assert.match(html, /&lt;img/);
     assert.doesNotMatch(html, /<img|抽出エラーの分類|<h4>日本語の原文/);
   }
-  assert.match(app.detailMarkup(item), /本文は確認できていません/);
-  assert.match(app.detailMarkup(item), /OCR/);
+  assert.ok(app.detailMarkup(item).includes(app.t("extraction.missing")));
   app.renderNotices({ notices: [item], coverage: [{ source_id: "school", source_name: "桜野小学校", status: "partial", notice_count: 1, readable_count: 0 }], warnings: ["桜野小学校: 本文を読み取れませんでした"] });
   assert.equal(app.get("empty-state").hidden, true);
   assert.match(app.get("notice-list").innerHTML, /data-notice-id="unreadable"/);
@@ -594,13 +593,12 @@ test("shared municipal records do not pretend the registry level is the article'
   assert.doesNotMatch(app.detailMarkup(item), /小学校|1年生/);
 });
 
-test("readable and legacy details include the machine-extraction/OCR note without an unverified badge", () => {
+test("readable and legacy details include the localized extraction note without an unverified badge", () => {
   const app = frontend();
   for (const extraction_status of ["ok", undefined]) {
     const item = notice("readable", { extraction_status, text: "持ち物：水筒" });
     const html = app.detailMarkup(item);
-    assert.match(html, /class="extraction-note" lang="ja">表示本文は機械による抽出結果/);
-    assert.match(html, /OCR/);
+    assert.ok(html.includes(app.t("extraction.note")));
     assert.match(html, /lang="ja">持ち物：水筒/);
     assert.doesNotMatch(html, /extraction-badge|本文は確認できていません/);
   }
@@ -833,6 +831,67 @@ test("coverage stays closed by default and new asset versions match the service 
   }
   const policyCss = readFileSync(path.join(web, "policies.html"), "utf8").match(/\/app\.css\?v=[^"']+/)[0];
   assert.ok(sw.includes(`"${policyCss}"`));
+});
+
+test("categories keep every complete block including optional conditions after item eight", () => {
+  const app = frontend();
+  const blocks = Array.from({ length: 9 }, (_, i) => `準備${i}`);
+  blocks.push("長ぐつ\n(はきたい人だけ、学校で長ぐつにはきかえます。)");
+  const html = app.detailMarkup(notice("supplies", { text: blocks.join("\n"), categories: { "持ち物・準備": blocks } }));
+  assert.match(html, /category-section" open/);
+  assert.equal((html.match(/<li lang="ja">/g) || []).length, 10);
+  assert.match(html, /<li lang="ja">長ぐつ\n\(はきたい人だけ、学校で長ぐつにはきかえます。\)<\/li>/);
+});
+
+test("external translation is opt-in, lossless, language-specific and never for unreadable text", () => {
+  const app = frontend({ api: () => { throw new Error("no automatic requests"); } });
+  const item = notice('公開<タイトル>', { text: "持ち物：長ぐつ\n（希望者のみ）\n<img onerror=x>" });
+  assert.equal(app.translationMarkup(item), "");
+  for (const [language, target] of [["ko", "ko"], ["en", "en"], ["zh", "zh-CN"]]) {
+    app.state.language = language;
+    const html = app.translationMarkup(item);
+    assert.match(html, /target="_blank" rel="noopener noreferrer"/);
+    const url = new URL(html.match(/href="([^"]+)"/)[1].replaceAll("&amp;", "&"));
+    assert.equal(url.origin, "https://translate.google.com");
+    assert.equal(url.searchParams.get("tl"), target);
+    assert.equal(url.searchParams.get("sl"), "ja");
+    assert.equal(url.searchParams.get("text"), `${item.title}\n\n${item.text}`);
+    assert.doesNotMatch(html, /<img|<iframe/);
+    assert.equal(app.translationMarkup({ ...item, extraction_status: "original_only" }), "");
+    assert.equal(app.translationMarkup({ ...item, text: "  \n" }), "");
+  }
+});
+
+test("long translation parts retain every codepoint and whitespace within URL and text limits", () => {
+  const app = frontend();
+  const text = (`見出し\n${"長ぐつ（希望者のみ）。🌸 ".repeat(100)}\n\n`).repeat(8);
+  const parts = app.translationParts(text);
+  assert.ok(parts.length > 1);
+  assert.equal(parts.join(""), text);
+  for (const part of parts) {
+    assert.ok(Array.from(part).length <= 4500);
+    assert.ok(encodeURIComponent(part).length <= 6000);
+    assert.ok(part.length > 0);
+  }
+  assert.deepEqual(Array.from(app.translationParts("")), []);
+  assert.equal(app.translationParts("x".repeat(20000)).join(""), "x".repeat(20000));
+  app.state.language = "ko";
+  const item = notice("long", { text });
+  const html = app.translationMarkup(item);
+  const urls = [...html.matchAll(/href="([^"]+)"/g)].map((match) => new URL(match[1].replaceAll("&amp;", "&")));
+  assert.equal(urls.map((url) => url.searchParams.get("text")).join(""), `${item.title}\n\n${text}`);
+  assert.match(html, new RegExp(`${urls.length}/${urls.length}`));
+  for (const url of urls) assert.ok(url.href.length <= 6100);
+  for (const text of ["'()!~🌸".repeat(2000), "'".repeat(10000)]) {
+    const punctuation = app.translationMarkup(notice("punctuation", { text }));
+    const restored = [];
+    for (const match of punctuation.matchAll(/href="([^"]+)"/g)) {
+      const url = new URL(match[1].replaceAll("&amp;", "&").replaceAll("&#039;", "'"));
+      assert.ok(url.href.length <= 6100);
+      restored.push(url.searchParams.get("text"));
+    }
+    assert.equal(restored.join(""), `punctuation\n\n${text}`);
+  }
 });
 
 test("official attachment links are compact, escaped, collapsed and never presented as read bodies", () => {

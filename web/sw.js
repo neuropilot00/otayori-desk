@@ -1,7 +1,6 @@
 const CACHE_PREFIX = "otayori-desk-shell-";
-const CACHE_NAME = `${CACHE_PREFIX}v12`;
-// policies.html still uses the previous stylesheet URL.
-const SHELL = ["/", "/app.css?v=20261001-14", "/app.css?v=20261001-12", "/app.js?v=20261002-2", "/policies.html", "/policies.js?v=20261001-12", "/manifest.webmanifest", "/icon.svg"];
+const CACHE_NAME = `${CACHE_PREFIX}v13`;
+const SHELL = ["/", "/app.css?v=20261002-1", "/app.js?v=20261002-3", "/policies.html", "/policies.js?v=20261002-1", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -31,15 +30,19 @@ function sameOriginNotificationUrl(value) {
   return `${self.location.origin}/`;
 }
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "otayori-push-capabilities") event.ports?.[0]?.postMessage({ test_notification: true });
+});
+
 self.addEventListener("push", (event) => {
   let payload = {};
   try { payload = (event.data ? event.data.json() : {}) || {}; } catch (_) { /* keep the safe fallback */ }
   event.waitUntil(self.registration.showNotification("おたより desk", {
-    body: "新しい公開のお知らせがあります。原文をご確認ください。",
+    body: payload.type === "test" ? "テスト通知です。この端末で通知を受け取れました。" : "新しい公開のお知らせがあります。原文をご確認ください。",
     icon: "/icon.svg",
     badge: "/icon.svg",
     data: { url: sameOriginNotificationUrl(payload.url) },
-    tag: "otayori-desk-update",
+    tag: payload.type === "test" ? "otayori-desk-test" : "otayori-desk-update",
     renotify: true,
   }));
 });

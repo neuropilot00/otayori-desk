@@ -8,7 +8,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/manifest.webmanifest">
     <title>おたより desk — 学校のお知らせベータ</title>
-  <link rel="stylesheet" href="/app.css?v=20261001-14">
+  <link rel="stylesheet" href="/app.css?v=20261002-1">
   </head>
   <body>
     <div class="app-shell">
@@ -74,8 +74,9 @@
             <p data-pilot-i18n="consentScope">選択中の学校・学年などの条件で通知します。通知先・暗号鍵・選択条件をサーバーに保存し、ランダムな端末Cookie（HttpOnly）で管理します。</p>
             <label class="consent-label"><input id="notification-consent" type="checkbox"><span data-pilot-i18n="consent">通知用データの保存・利用に同意します（任意）。</span></label>
             <a href="/policies.html#privacy" lang="ja" data-pilot-i18n="consentPolicy">プライバシー・利用条件を確認（日本語）</a>
-            <div class="pilot-actions"><button id="notification-enable" type="button" data-pilot-i18n="enable" disabled>同意して通知を設定</button><button id="notification-unsubscribe" type="button" data-pilot-i18n="unsubscribe">この端末の通知を解除</button></div>
+            <div class="pilot-actions"><button id="notification-enable" type="button" data-pilot-i18n="enable" disabled>同意して通知を設定</button><button id="notification-test" type="button" data-pilot-i18n="testNotification" disabled>この端末にテスト通知</button><button id="notification-unsubscribe" type="button" data-pilot-i18n="unsubscribe">この端末の通知を解除</button></div>
             <p class="pilot-status" id="notification-status" role="status" aria-live="polite"></p>
+            <p class="pilot-status" id="notification-test-status" role="status" aria-live="polite"></p>
           </section>
 
           <div class="feed-switcher" id="feed-switcher" role="tablist" aria-label="表示する情報">
@@ -187,7 +188,7 @@
         <nav class="policy-links" aria-label="ポリシー（日本語）"><a href="/policies.html#privacy" lang="ja">プライバシー</a><a href="/policies.html#terms" lang="ja">利用条件</a><a href="/policies.html#sources" lang="ja">情報源の方針</a><a href="#feedback" data-pilot-i18n="feedback">不具合・ご意見</a><span data-pilot-i18n="policiesJapanese">ポリシーは日本語</span></nav>
       </footer>
     </div>
-    <script src="/policies.js?v=20261001-12" defer></script>
-  <script src="/app.js?v=20261002-2" defer></script>
+    <script src="/policies.js?v=20261002-1" defer></script>
+  <script src="/app.js?v=20261002-3" defer></script>
   </body>
 </html>

@@ -9,11 +9,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from sakurano_line_notifier.web_server import _BetaHTTPServer, BetaRequestHandler, POLICY_VERSION
+from sakurano_line_notifier.web_push import PushSubscriptionError
 
 
 class FakePush:
     def __init__(self):
         self.owners = {}
+        self.test_calls = []
 
     def subscribe(self, subscription, scope, owner, consent):
         self.owners[owner] = {"scope": scope, "consent_version": consent}
@@ -26,6 +28,12 @@ class FakePush:
 
     def delete_owner(self, owner):
         self.owners.pop(owner, None)
+
+    def test_subscription(self, owner, endpoint):
+        if owner not in self.owners or endpoint != "mock":
+            raise PushSubscriptionError("unavailable")
+        self.test_calls.append((owner, endpoint))
+        return {"provider_accepted": True, "delivery_confirmed": False}
 
 
 class ServerSecurityTests(unittest.TestCase):
@@ -91,6 +99,31 @@ class ServerSecurityTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("Max-Age=0", headers["Set-Cookie"])
         self.assertFalse(self.push.owners)
+
+    def test_push_test_requires_owner_and_does_not_enroll_or_confirm_delivery(self):
+        status, headers, _ = self.post("/api/push/test", {"endpoint": "mock"})
+        self.assertEqual(status, 403)
+        self.assertNotIn("Set-Cookie", headers)
+        self.assertFalse(self.push.test_calls)
+        _, headers, _ = self.post("/api/push/subscribe", self.consent())
+        cookie = headers["Set-Cookie"].split(";", 1)[0]
+        before = dict(self.push.owners)
+        status, headers, result = self.post("/api/push/test", {"endpoint": "mock"}, cookie)
+        self.assertEqual(status, 200)
+        self.assertEqual(result, {"provider_accepted": True, "delivery_confirmed": False})
+        self.assertNotIn("Set-Cookie", headers)
+        self.assertEqual(self.push.owners, before)
+        self.assertEqual(len(self.push.test_calls), 1)
+        self.assertEqual(self.post("/api/push/test", {"endpoint": "mock"}, cookie)[0], 429)
+        self.assertEqual(len(self.push.test_calls), 1)
+
+    def test_push_test_cannot_use_another_cookie_or_cross_origin(self):
+        self.post("/api/push/subscribe", self.consent())
+        stranger = "otayori_device=" + secrets.token_urlsafe(32)
+        self.assertEqual(self.post("/api/push/test", {"endpoint": "mock"}, stranger)[0], 400)
+        self.assertEqual(self.request("POST", "/api/push/test", {"endpoint": "mock"}, {"Origin": "https://evil.example", "Content-Type": "application/json"})[0], 403)
+        self.assertEqual(self.request("POST", "/api/push/test", {}, {"Origin": "https://test.example"})[0], 415)
+        self.assertFalse(self.push.test_calls)
 
     def test_free_beta_cannot_enable_payments_from_query(self):
         status, headers, payload = self.request("GET", "/api/pilot?payments=true")

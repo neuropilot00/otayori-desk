@@ -301,6 +301,12 @@ class PushSubscriptionStore(_OwnerOperations):
                 self._write(payload)
             return list(payload["subscriptions"].values())
 
+    def subscription_for_owner(self, owner_hash: str, endpoint: str) -> dict[str, Any] | None:
+        # A self-test lookup must not run retention or change delivery ledgers.
+        with self._lock:
+            record = self._read()["subscriptions"].get(endpoint)
+            return record if record and record.get("owner_hash") == owner_hash else None
+
     def delivery_state(self, record: dict[str, Any]) -> dict[str, Any] | None:
         return record.get("delivery_state")
 
@@ -486,6 +492,12 @@ class SQLitePushSubscriptionStore(_OwnerOperations):
                 if isinstance(record["scope"], dict):
                     records.append(record)
         return records
+
+    def subscription_for_owner(self, owner_hash: str, endpoint: str) -> dict[str, Any] | None:
+        with self._transaction() as cursor:
+            row = self._execute(cursor, f"SELECT {self._columns} FROM push_subscriptions WHERE endpoint = ? AND owner_hash = ?",
+                                (endpoint, owner_hash)).fetchone()
+        return self._record(row) if row is not None else None
 
     def delivery_state(self, record: dict[str, Any]) -> dict[str, Any] | None:
         return record.get("delivery_state")
@@ -693,6 +705,32 @@ class WebPushNotifier:
         if not selected:
             raise PushSubscriptionError("scope matches no enabled source")
         return self.store.upsert(subscription, normalized, owner_hash, consent_version)
+
+    def test_subscription(self, owner_hash: str, endpoint: str) -> dict[str, bool]:
+        """Test one owned subscription without changing enrollment or baselines.
+
+        The server supplies the owner hash; the endpoint only selects an existing
+        subscription. Provider acceptance cannot confirm receipt on a device.
+        """
+        _validated_owner(owner_hash)
+        endpoint = _validated_endpoint(endpoint)
+        if not self.sending_enabled or not self.store:
+            raise PushSubscriptionError("push testing is disabled")
+        record = self.store.subscription_for_owner(owner_hash, endpoint)
+        if (not record or record.get("endpoint") != endpoint
+                or record.get("owner_hash") != owner_hash or not _active(record)):
+            raise PushSubscriptionError("an active owned subscription is required")
+        try:
+            # Reuse provider validation, timeouts and the last current-record
+            # check. Do not use scanner cleanup, retries or ledger persistence.
+            self._send(record, {
+                "type": "test", "title": "おたより desk · テスト通知",
+                "body": "これは通知の動作確認用テストです。", "url": "/",
+            })
+        except Exception:
+            # Provider errors can include endpoints, keys and response bodies.
+            raise PushSubscriptionError("push test acceptance could not be confirmed; please retry later") from None
+        return {"provider_accepted": True, "delivery_confirmed": False}
 
     def export_owner(self, owner_hash: str) -> dict[str, Any]:
         _validated_owner(owner_hash)

@@ -34,7 +34,7 @@ jobs:
           node --check web/app.js
           node --check web/sw.js
           node --check web/policies.js
-          node --test tests/test_frontend.cjs
+          node --test tests/*.cjs
 
   dependencies:
     runs-on: ubuntu-latest
