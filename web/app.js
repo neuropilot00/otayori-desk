@@ -22,6 +22,9 @@ const I18N = {
     "detail.attachments": "添付資料（公式原文）", "detail.attachmentsNote": "リンク先の添付本文は自動確認の対象外です。内容・変更は原文でご確認ください。",
     "status.refreshing": "最新の資料を確認中です…", "status.refreshTimeout": "確認に時間がかかっています。しばらくしてから更新してください。", "status.refreshError": "最新情報の再確認に失敗しました。表示中の情報と原文をご確認ください。",
     "extraction.unverified": "本文未確認", "coverage.readable": "本文", "coverage.documents": "資料",
+    "coverage.stale": "更新遅れ", "coverage.extraction": "本文未確認", "coverage.pending": "初回確認待ち", "coverage.refreshing": "更新確認中", "coverage.details": "詳細", "coverage.close": "閉じる", "coverage.refreshTimeout": "確認が遅れています", "coverage.refreshError": "再確認に失敗",
+    "coverage.collection": "収集の問題", "coverage.reason.collection": "一部の公開ページ・資料を取得できませんでした。公式ページをご確認ください。",
+    "coverage.reason.stale": "最新の更新をまだ確認できていません。前回取得した情報を表示しています。", "coverage.reason.extraction": "本文を読み取れない資料があります。公式の原文をご確認ください。", "coverage.reason.unavailable": "公開ページを取得できませんでした。公式ページをご確認ください。", "coverage.reason.limit": "収集上限のため、一部の過去資料は対象外です。", "coverage.reason.refreshing": "最新の資料を確認中です。", "coverage.reason.pending": "初回の取得結果を待っています。", "coverage.reason.unknown": "最終確認の状況を確認できていません。", "coverage.reason.partial": "一部の資料を確認できていません。下の確認内容と公式原文をご確認ください。",
     "common.event": "開催", "common.deadline": "締切", "events.upcoming": "開催・締切が近い順", "events.past": "終了したイベント", "reference.title": "施設案内（連絡帳ではありません）",
     "coverage.title": "収集範囲・確認状況", "coverage.official": "公式ページ ↗", "coverage.checked": "公開範囲を確認", "coverage.partial": "一部のみ確認", "coverage.reference": "施設案内", "coverage.unavailable": "取得できませんでした", "coverage.unknown": "確認状況不明", "coverage.collected": "取得", "coverage.discovered": "候補", "coverage.limit": "収集上限あり", "coverage.checkedAt": "確認日時", "coverage.attention": "確認の注意", "coverage.sourceUnknown": "発信元未確認",
     "page.title": "おたより desk — 学校のお知らせベータ", "brand.subtitle": "東京の学校だより / ベータ", "status.public": "公開ページを確認中", "status.errorPrefix": "確認できませんでした：", "language.label": "表示言語", "theme.toggle": "テーマを切り替え", "detail.view": "詳細を見る",
@@ -42,6 +45,9 @@ const I18N = {
     "detail.attachments": "첨부자료 공식 원문", "detail.attachmentsNote": "첨부파일 본문은 자동 확인 대상이 아닙니다. 내용과 변경 사항은 원문에서 확인해 주세요.",
     "status.refreshing": "최신 자료를 확인 중입니다…", "status.refreshTimeout": "확인이 지연되고 있습니다. 잠시 후 다시 갱신해 주세요.", "status.refreshError": "최신 정보 재확인에 실패했습니다. 표시된 정보와 원문을 확인해 주세요.",
     "extraction.unverified": "본문 미확인", "coverage.readable": "본문", "coverage.documents": "자료",
+    "coverage.stale": "갱신 지연", "coverage.extraction": "본문 미확인", "coverage.pending": "첫 확인 대기", "coverage.refreshing": "갱신 확인 중", "coverage.details": "상세", "coverage.close": "접기", "coverage.refreshTimeout": "확인이 지연되고 있습니다", "coverage.refreshError": "재확인 실패",
+    "coverage.collection": "수집 문제", "coverage.reason.collection": "일부 공개 페이지나 자료를 가져오지 못했습니다. 공식 페이지를 확인해 주세요.",
+    "coverage.reason.stale": "최신 변경 사항을 아직 확인하지 못해 이전에 수집한 정보를 표시합니다.", "coverage.reason.extraction": "본문을 읽지 못한 자료가 있습니다. 공식 원문을 확인해 주세요.", "coverage.reason.unavailable": "공개 페이지를 가져오지 못했습니다. 공식 페이지를 확인해 주세요.", "coverage.reason.limit": "수집 상한으로 일부 과거 자료는 대상에서 제외됩니다.", "coverage.reason.refreshing": "최신 자료를 확인 중입니다.", "coverage.reason.pending": "첫 수집 결과를 기다리고 있습니다.", "coverage.reason.unknown": "마지막 확인 상태를 알 수 없습니다.", "coverage.reason.partial": "일부 자료를 확인하지 못했습니다. 아래 확인 내용과 공식 원문을 확인해 주세요.",
     "common.event": "개최", "common.deadline": "마감", "events.upcoming": "개최·마감이 가까운 순", "events.past": "종료된 이벤트", "reference.title": "시설 안내 (가정 통신문이 아닙니다)",
     "coverage.title": "수집 범위·확인 현황", "coverage.official": "공식 페이지 ↗", "coverage.checked": "공개 범위 확인", "coverage.partial": "일부만 확인", "coverage.reference": "시설 안내", "coverage.unavailable": "가져오지 못함", "coverage.unknown": "확인 상태 불명", "coverage.collected": "수집", "coverage.discovered": "후보", "coverage.limit": "수집 상한 있음", "coverage.checkedAt": "확인 일시", "coverage.attention": "확인 주의", "coverage.sourceUnknown": "출처 미확인",
     "page.title": "오타요리 desk — 학교 소식 베타", "brand.subtitle": "도쿄 학교 소식 / 베타", "status.public": "공개 페이지 확인 중", "status.errorPrefix": "확인하지 못했습니다: ", "language.label": "표시 언어", "theme.toggle": "테마 전환", "detail.view": "자세히 보기",
@@ -55,6 +61,9 @@ const I18N = {
     "detail.attachments": "Official attachments", "detail.attachmentsNote": "Attachment contents are not automatically verified. Check the originals for details and changes.",
     "status.refreshing": "Checking for the latest documents…", "status.refreshTimeout": "Checking is taking longer. Please refresh again later.", "status.refreshError": "Could not recheck the latest updates. Please review the displayed information and originals.",
     "extraction.unverified": "Text unverified", "coverage.readable": "Readable", "coverage.documents": "Documents",
+    "coverage.stale": "Update overdue", "coverage.extraction": "Text unverified", "coverage.pending": "First check pending", "coverage.refreshing": "Checking updates", "coverage.details": "Details", "coverage.close": "Close", "coverage.refreshTimeout": "Check delayed", "coverage.refreshError": "Recheck failed",
+    "coverage.collection": "Retrieval issue", "coverage.reason.collection": "Some public pages or documents could not be retrieved. Please check the official page.",
+    "coverage.reason.stale": "Recent changes have not been checked yet. Previously collected information is shown.", "coverage.reason.extraction": "Some document text could not be read. Please check the official originals.", "coverage.reason.unavailable": "The public page could not be retrieved. Please check the official page.", "coverage.reason.limit": "Some older documents are outside the collection limit.", "coverage.reason.refreshing": "Checking for the latest documents.", "coverage.reason.pending": "Waiting for the first collection result.", "coverage.reason.unknown": "The last check status is unknown.", "coverage.reason.partial": "Some documents could not be checked. Review the details below and the official originals.",
     "common.event": "Event", "common.deadline": "Deadline", "events.upcoming": "Upcoming dates first", "events.past": "Past events", "reference.title": "Facility information (not school messages)",
     "coverage.title": "Collection scope & status", "coverage.official": "Official page ↗", "coverage.checked": "Public scope checked", "coverage.partial": "Partly checked", "coverage.reference": "Facility information", "coverage.unavailable": "Could not retrieve", "coverage.unknown": "Status unknown", "coverage.collected": "Collected", "coverage.discovered": "Candidates", "coverage.limit": "Collection limit reached", "coverage.checkedAt": "Checked at", "coverage.attention": "Source warnings", "coverage.sourceUnknown": "Unknown source",
     "page.title": "Otayori desk — school updates beta", "brand.subtitle": "Tokyo school notes / beta", "status.public": "Checking public pages", "status.errorPrefix": "Could not check: ", "language.label": "Language", "theme.toggle": "Change theme", "detail.view": "View details", "hero.eyebrow": "Parent beta · public sources", "hero.title": "School updates,<br><em>all in one place</em>.", "hero.lede": "See school letters, grade updates, and event information together without searching each school page.", "hero.note": "Choose your child's school and grade to show only relevant updates.", "metrics.schools": "Registered schools", "metrics.schoolsFoot": "Elementary · middle · high", "metrics.notices": "Shown now", "metrics.noticesFoot": "Based on public originals", "metrics.wards": "Areas", "metrics.wardsFoot": "Registry ready for expansion", "metrics.scanned": "Last checked", "metrics.scannedFoot": "5-min cache · refresh anytime", "workspace.eyebrow": "My child's school desk", "workspace.title": "Updates to check today", "actions.refresh": "Refresh now", "actions.notifications": "Get notifications", "feeds.notices": "School & daily life", "feeds.events": "Events", "groups.school": "School", "groups.municipality": "Musashino City / Board of Education", "groups.afterSchool": "After-school care", "filters.change": "Change school / grade", "filters.school": "School", "filters.allSchools": "All schools", "filters.group": "Source", "filters.allGroups": "All sources", "filters.level": "School type", "filters.all": "All", "filters.ward": "Area", "filters.allAreas": "All areas", "filters.grade": "Grade", "filters.nearby": "Find nearby schools", "filters.map": "Open map ↗", "levels.elementary": "Elementary", "levels.middle": "Middle", "levels.high": "High school", "grades.one": "Grade 1", "grades.two": "Grade 2", "grades.three": "Grade 3", "grades.four": "Grade 4", "grades.five": "Grade 5", "grades.six": "Grade 6", "grades.all": "All grades", "status.checking": "Checking school pages.", "status.loading": "Checking school pages…", "empty.title": "No updates to show", "empty.body": "Change a filter or refresh again.", "detail.eyebrow": "Original first", "detail.placeholderTitle": "Select an update to see the original here.", "detail.placeholderBody": "Review categorized items together with the Japanese original and official link.", "detail.original": "Japanese original", "detail.openOriginal": "Open official original ↗", "detail.loading": "Loading the original…", "detail.errorEyebrow": "Detail error", "detail.errorTitle": "Could not load the original.", "card.original": "Original ↗", "common.items": " items", "common.published": "Published", "common.unknownDate": "Date unknown", "common.latest": "LATEST", "archive.past": "Past updates", "archive.none": "No past updates", "summary.notices": "School & daily life", "summary.events": "Events", "summary.noData": "No information to show", "summary.warning": " · source warnings: ", "summary.warningSuffix": "", "summary.all": "All ", "summary.archiveSuffix": ".", "kind.grade": "Grade letter", "kind.school": "School letter", "kind.afterSchool": "After-school care", "kind.city": "City / board", "kind.related": "Related", "category.supplies": "What to bring", "category.submission": "Submissions & deadlines", "category.events": "Events & schedule", "category.parent": "For parents", "category.school": "School-wide notice", "category.study": "Study schedule",
@@ -63,6 +72,9 @@ const I18N = {
     "detail.attachments": "官方附件原文", "detail.attachmentsNote": "附件正文不在自动确认范围内，请查看原文中的内容及变更。",
     "status.refreshing": "正在确认最新资料…", "status.refreshTimeout": "确认耗时较长，请稍后再次刷新。", "status.refreshError": "无法再次确认最新信息，请查看当前信息和原文。",
     "extraction.unverified": "正文未确认", "coverage.readable": "正文", "coverage.documents": "资料",
+    "coverage.stale": "更新延迟", "coverage.extraction": "正文未确认", "coverage.pending": "等待首次确认", "coverage.refreshing": "正在检查更新", "coverage.details": "详情", "coverage.close": "收起", "coverage.refreshTimeout": "确认延迟", "coverage.refreshError": "再次确认失败",
+    "coverage.collection": "收集问题", "coverage.reason.collection": "无法获取部分公开页面或资料，请查看官方页面。",
+    "coverage.reason.stale": "尚未确认最新变更，当前显示此前收集的信息。", "coverage.reason.extraction": "部分资料的正文无法读取，请查看官方原文。", "coverage.reason.unavailable": "无法获取公开页面，请查看官方页面。", "coverage.reason.limit": "由于收集上限，部分历史资料不在收集范围内。", "coverage.reason.refreshing": "正在确认最新资料。", "coverage.reason.pending": "正在等待首次收集结果。", "coverage.reason.unknown": "无法确认上次检查的状态。", "coverage.reason.partial": "部分资料尚未确认，请查看下方详情及官方原文。",
     "common.event": "举办", "common.deadline": "截止", "events.upcoming": "按举办·截止日期由近到远", "events.past": "已结束的活动", "reference.title": "设施介绍（非家校通知）",
     "coverage.title": "收集范围·确认状态", "coverage.official": "官方页面 ↗", "coverage.checked": "已检查公开范围", "coverage.partial": "仅确认部分", "coverage.reference": "设施介绍", "coverage.unavailable": "无法获取", "coverage.unknown": "确认状态未知", "coverage.collected": "已获取", "coverage.discovered": "候选", "coverage.limit": "已达收集上限", "coverage.checkedAt": "确认时间", "coverage.attention": "来源提醒", "coverage.sourceUnknown": "来源未确认",
     "page.title": "おたより desk — 学校通知测试版", "brand.subtitle": "东京学校通知 / 测试版", "status.public": "正在检查公开页面", "status.errorPrefix": "无法确认：", "language.label": "显示语言", "theme.toggle": "切换主题", "detail.view": "查看详情", "hero.eyebrow": "家长测试版 · 公开来源", "hero.title": "学校通知，<br><em>集中在一处</em>。", "hero.lede": "无需逐个寻找学校网页，即可集中查看学校通知、年级通知和活动信息。", "hero.note": "选择孩子的学校和年级，只显示需要的信息。", "metrics.schools": "已登记学校", "metrics.schoolsFoot": "小学·初中·高中", "metrics.notices": "当前显示", "metrics.noticesFoot": "以公开原文为准", "metrics.wards": "覆盖地区", "metrics.wardsFoot": "可扩展东京地区", "metrics.scanned": "最后检查", "metrics.scannedFoot": "5分钟缓存·可手动更新", "workspace.eyebrow": "孩子的学校桌面", "workspace.title": "今天要确认的通知", "actions.refresh": "立即更新", "actions.notifications": "接收通知", "feeds.notices": "学校·日常", "feeds.events": "活动", "groups.school": "学校", "groups.municipality": "武藏野市·教育委员会／市政府", "groups.afterSchool": "课后托管", "filters.change": "更改学校·年级", "filters.school": "学校", "filters.allSchools": "所有学校", "filters.group": "来源", "filters.allGroups": "所有来源", "filters.level": "学校类型", "filters.all": "全部", "filters.ward": "地区", "filters.allAreas": "所有地区", "filters.grade": "年级", "filters.nearby": "查找附近学校", "filters.map": "在地图中查看 ↗", "levels.elementary": "小学", "levels.middle": "初中", "levels.high": "高中", "grades.one": "一年级", "grades.two": "二年级", "grades.three": "三年级", "grades.four": "四年级", "grades.five": "五年级", "grades.six": "六年级", "grades.all": "全年级", "status.checking": "正在检查学校页面。", "status.loading": "正在检查学校页面…", "empty.title": "没有可显示的通知", "empty.body": "请更改筛选条件或再次更新。", "detail.eyebrow": "优先查看原文", "detail.placeholderTitle": "选择通知后将在这里显示原文。", "detail.placeholderBody": "可同时查看分类内容、日文原文和官方链接。", "detail.original": "日文原文", "detail.openOriginal": "打开官方原文 ↗", "detail.loading": "正在加载原文…", "detail.errorEyebrow": "详情错误", "detail.errorTitle": "无法加载原文。", "card.original": "原文 ↗", "common.items": "条", "common.published": "发布", "common.unknownDate": "日期未知", "common.latest": "最新", "archive.past": "过去的通知", "archive.none": "没有过去的通知", "summary.notices": "学校·日常通知", "summary.events": "活动", "summary.noData": "没有可显示的信息", "summary.warning": " · 部分来源有警告 ", "summary.warningSuffix": "条", "summary.all": "共", "summary.archiveSuffix": "。", "kind.grade": "年级通知", "kind.school": "学校通知", "kind.afterSchool": "课后托管", "kind.city": "市政府·教育委员会", "kind.related": "相关资料", "category.supplies": "携带物品·准备", "category.submission": "提交物·截止日期", "category.events": "活动·日程", "category.parent": "给家长的通知", "category.school": "全校通知", "category.study": "学习安排",
@@ -361,44 +373,104 @@ function formatFilterSummary(latest, total, warningCount, archiveCount) {
   return `${latest ? `${latest.label} ${formatCount(latest.items.length)}` : t("summary.noData")}（${t("summary.all")}${formatCount(total)}）${warningText}・${archiveText}`;
 }
 
+function coverageIssues(source) {
+  const known = ["stale", "unavailable", "extraction", "limit", "refreshing", "collection", "pending", "unknown"];
+  const issues = new Set((source.issue_codes || []).map((code) => known.includes(code) ? code : "unknown"));
+  if (["stale", "pending", "unknown"].includes(source.freshness_status)) issues.add(source.freshness_status);
+  if (source.status === "unavailable" && source.freshness_status !== "pending") issues.add("unavailable");
+  if (Number.isInteger(source.readable_count) && source.readable_count >= 0 && source.readable_count < source.notice_count) issues.add("extraction");
+  if (source.limit_reached) issues.add("limit");
+  if (source.refreshing) issues.add("refreshing");
+  if (source.status === "partial" && (!issues.size || (issues.size === 1 && issues.has("limit") && !source.issue_codes?.length))) issues.add("collection");
+  if (!issues.size && !["checked", "reference"].includes(source.status) && !isReference(source) && source.freshness_status !== "fresh") issues.add("unknown");
+  return [...issues];
+}
+
 function coverageStatus(source) {
-  if (source.status === "unavailable" || source.status === "partial") return source.status;
-  if (source.limit_reached || (Number.isInteger(source.readable_count) && source.readable_count >= 0 && source.readable_count < source.notice_count)) return "partial";
+  const issues = coverageIssues(source);
+  const status = ["unavailable", "extraction", "collection", "stale", "pending", "refreshing", "unknown", "limit"].find((code) => issues.includes(code));
+  if (status) return status;
   if (isReference(source) || source.status === "reference") return "reference";
-  return source.status === "checked" ? "checked" : "unknown";
+  return source.status === "checked" || source.freshness_status === "fresh" ? "checked" : "unknown";
+}
+
+function coverageIssueClass(issue) {
+  return ["extraction", "collection", "unavailable", "refreshError"].includes(issue) ? "status-unavailable" : `status-${issue}`;
+}
+
+// Old responses only have Japanese warnings; keep unrecognized warnings visible.
+function legacyCoverageIssue(message) {
+  if (/本文.*(?:読み取れ|読み取り.*でき)|OCR.*(?:失敗|エラー)/.test(message)) return "extraction";
+  if (/更新確認中です。前回取得した情報を表示しています。/.test(message)) return "refreshing";
+  if (/更新.*遅れ|最新.*未確認/.test(message)) return "stale";
+  if (/^(?:公開ページの確認|資料の収集|収集)上限(?:に達|あり)/.test(message)) return "limit";
+  return "collection";
 }
 
 function renderCoverage(payload) {
-  const rows = (payload.coverage || []).map((item) => ({ ...sourceConfig(item), ...item }));
-  const warnings = [...(payload.warnings || []), ...(payload.errors || [])];
-  const problems = rows.filter((source) => ["partial", "unavailable", "unknown"].includes(coverageStatus(source)));
-  const alert = $("coverage-alert");
   const sourceName = (source) => source.source_name || source.name || source.source_id || t("coverage.sourceUnknown");
-  const problemLabels = problems.map((source) => `${sourceName(source)}（${t(`coverage.${coverageStatus(source)}`)}）`);
-  if (!problemLabels.length && (warnings.length || payload.complete === false)) problemLabels.push(t("coverage.partial"));
-  const warningText = problemLabels.length ? `${t("coverage.attention")}：${problemLabels.join(" · ")}` : "";
-  alert.textContent = [warningText, state.refreshStatus ? t(`status.${state.refreshStatus}`) : ""].filter(Boolean).join(" · ");
-  alert.hidden = !alert.textContent;
-  $("coverage-details").hidden = false;
+  const rows = (payload.coverage || []).map((item) => ({ ...sourceConfig(item), ...item }));
+  const warnings = [...(payload.warnings || []).map((warning) => ({ warning, isError: false })), ...(payload.errors || []).map((warning) => ({ warning, isError: true }))].map(({ warning, isError }) => {
+    const message = typeof warning === "string" ? warning : `${sourceName({ ...sourceConfig(warning), ...warning })}：${warning.message || warning.error || ""}`;
+    const source = rows.find((row) => (typeof warning === "object" && warning.source_id && warning.source_id === row.source_id)
+      || message.startsWith(`${sourceName(row)}: `) || message.startsWith(`${sourceName(row)}：`));
+    const reason = typeof warning === "object" ? warning.message || warning.error || "" : source ? message.slice(sourceName(source).length + 1).trimStart() : message;
+    const typedReason = source && (source.issue_codes?.length || ["stale", "pending", "unknown"].includes(source.freshness_status));
+    const issues = isError ? ["collection"] : typedReason ? coverageIssues(source) : [legacyCoverageIssue(reason)];
+    return { message, source, issues, isError };
+  });
+  // Attach legacy warning reasons before interpreting a generic partial status.
+  for (const source of rows) {
+    const related = warnings.filter((warning) => warning.source === source);
+    source.issue_codes = [...(source.issue_codes || []), ...related.filter((warning) => warning.isError || !source.issue_codes?.length).flatMap((warning) => warning.issues)];
+  }
+  const counts = new Map();
+  const addIssue = (issue) => counts.set(issue, (counts.get(issue) || 0) + 1);
+  rows.forEach((source) => coverageIssues(source).forEach(addIssue));
+  warnings.filter((warning) => !warning.source).forEach((warning) => warning.issues.forEach(addIssue));
+  if ((payloadRefreshing(payload) || state.refreshStatus === "refreshing") && !counts.has("refreshing")) counts.set("refreshing", 0);
+  if (!counts.size && payload.complete === false) counts.set("unknown", 0);
+  if (["refreshTimeout", "refreshError"].includes(state.refreshStatus)) {
+    counts.delete("refreshing");
+    counts.set(state.refreshStatus, 0);
+  }
+  const summary = [...counts].filter(([issue]) => issue !== "limit");
+  const alert = $("coverage-alert");
+  const details = $("coverage-details");
+  alert.className = "coverage-note coverage-status";
+  alert.innerHTML = summary.map(([issue, count]) => `<span class="coverage-status ${coverageIssueClass(issue)}">${escapeHtml(t(`coverage.${issue}`))}${count ? ` ${count}` : ""}</span>`).join(" · ")
+    + (summary.length ? ` <a id="coverage-toggle" class="card-source-link" href="#coverage-details" aria-controls="coverage-details" aria-expanded="${Boolean(details.open)}">${escapeHtml(t(details.open ? "coverage.close" : "coverage.details"))}</a>` : "");
+  alert.hidden = !summary.length;
+  const toggle = alert.querySelector("#coverage-toggle");
+  if (toggle) {
+    toggle.onclick = (event) => { event.preventDefault(); details.open = !details.open; };
+    details.ontoggle = () => {
+      const current = alert.querySelector("#coverage-toggle");
+      current?.setAttribute("aria-expanded", String(details.open));
+      if (current) current.textContent = t(details.open ? "coverage.close" : "coverage.details");
+    };
+  }
+  details.hidden = false;
   $("coverage-count").textContent = String(rows.length);
   $("coverage-list").innerHTML = rows.map((source) => {
     const status = coverageStatus(source);
+    const issues = coverageIssues(source);
     const count = (value) => Number.isInteger(value) && value >= 0 ? formatCount(value) : "—";
     const countsDiffer = Number.isInteger(source.readable_count) && source.readable_count >= 0 && Number.isInteger(source.notice_count) && source.notice_count >= 0 && source.readable_count !== source.notice_count;
     const collected = countsDiffer ? `${t("coverage.readable")} ${source.readable_count} / ${t("coverage.documents")} ${source.notice_count}` : `${t("coverage.collected")} ${count(source.notice_count)}`;
     const checked = new Date(source.checked_at || "");
     const checkedAt = Number.isNaN(checked.getTime()) ? "—" : checked.toLocaleString({ ja: "ja-JP", ko: "ko-KR", en: "en-US", zh: "zh-CN" }[state.language] || "ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) + " JST";
-    return `<li class="coverage-source"><div class="coverage-source-heading"><strong>${escapeHtml(sourceName(source))}</strong><span class="coverage-status status-${status}">${escapeHtml(t(`coverage.${status}`))}</span>${officialLink(source.page_url, t("coverage.official"))}</div>
-      <p>${escapeHtml(collected)} · ${escapeHtml(t("coverage.discovered"))} ${escapeHtml(count(source.discovered_count))}${source.limit_reached ? ` · <strong>${escapeHtml(t("coverage.limit"))}</strong>` : ""}</p>
+    return `<li class="coverage-source"><div class="coverage-source-heading"><strong>${escapeHtml(sourceName(source))}</strong><span class="coverage-status ${coverageIssueClass(status)}">${escapeHtml(t(`coverage.${status}`))}</span>${officialLink(source.page_url, t("coverage.official"))}</div>
+      <p>${escapeHtml(collected)} · ${escapeHtml(t("coverage.discovered"))} ${escapeHtml(count(source.discovered_count))}${issues.includes("limit") ? ` · ${escapeHtml(t("coverage.limit"))}` : ""}</p>
+      ${issues.map((issue) => `<p><span class="coverage-status ${coverageIssueClass(issue)}">${escapeHtml(t(`coverage.reason.${issue}`))}</span></p>`).join("")}
       ${source.coverage_note ? `<p lang="ja">${escapeHtml(source.coverage_note)}</p>` : ""}
       ${isReference(source) || source.status === "reference" ? '<p lang="ja">施設の基本情報です。日々の連絡・新着通知の確認対象ではありません。</p>' : ""}
       <small>${escapeHtml(t("coverage.checkedAt"))} ${escapeHtml(checkedAt)}</small></li>`;
   }).join("") || `<li>${escapeHtml(t("coverage.unknown"))}</li>`;
-  $("coverage-warnings").innerHTML = warnings.map((warning) => {
-    const message = typeof warning === "string" ? warning : `${sourceName({ ...sourceConfig(warning), ...warning })}：${warning.message || warning.error || ""}`;
-    return `<li lang="ja">${escapeHtml(message)}</li>`;
-  }).join("");
-  $("coverage-warnings").hidden = !warnings.length;
+  $("coverage-warnings").className = "coverage-note coverage-status";
+  const refreshMessage = ["refreshTimeout", "refreshError"].includes(state.refreshStatus) ? `<li>${escapeHtml(t(`status.${state.refreshStatus}`))}</li>` : "";
+  $("coverage-warnings").innerHTML = warnings.map(({ message, issues }) => `<li lang="ja"><span class="coverage-status ${coverageIssueClass(issues.find((issue) => ["unavailable", "extraction", "collection"].includes(issue)) || issues[0])}">${escapeHtml(message)}</span></li>`).join("") + refreshMessage;
+  $("coverage-warnings").hidden = !warnings.length && !refreshMessage;
 }
 
 function renderNoticeCard(notice) {
@@ -590,7 +662,7 @@ async function selectNotice(id, { showInline = true } = {}) {
 }
 
 function payloadRefreshing(payload) {
-  return payload.refreshing === true || payload.coverage?.some((source) => source.refreshing === true);
+  return payload.refreshing === true || payload.coverage?.some((source) => source.refreshing === true || source.issue_codes?.includes("refreshing"));
 }
 
 function waitForRefreshPoll(signal) {

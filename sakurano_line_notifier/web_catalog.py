@@ -32,6 +32,7 @@ from .extractor import (
 from .fetcher import FetchError, HttpFetcher, LinkCandidate, parse_relevant_links
 from .formatter import KIND_LABELS, categorize_text
 from .notice_dates import activity_dates, publication_date, calendar_date
+from .catalog_watchdog import CatalogDispatchWatchdog
 
 
 class CatalogError(RuntimeError):
@@ -186,8 +187,23 @@ class CatalogResult:
     discovered_count: int = 0
     limit_reached: bool = False
     refreshing: bool = False
+    freshness_status: str = "fresh"
 
     def coverage(self) -> dict[str, Any]:
+        freshness = self.freshness_status if self.scanned_at else ("pending" if self.refreshing or self.freshness_status == "pending" else "unknown")
+        issues = []
+        if freshness == "stale":
+            issues.append("stale")
+        if any(notice.extraction_status != "ok" for notice in self.notices):
+            issues.append("extraction")
+        if not self.notices and freshness not in {"pending"} and not self.refreshing:
+            issues.append("unavailable")
+        if self.warnings and not issues and not self.refreshing and freshness != "pending":
+            issues.append("collection")
+        if self.limit_reached:
+            issues.append("limit")
+        if self.refreshing:
+            issues.append("refreshing")
         return {
             "source_id": self.source.id, "source_name": self.source.name,
             "page_url": self.source.page_url,
@@ -204,6 +220,8 @@ class CatalogResult:
             "limit_reached": self.limit_reached,
             "refreshing": self.refreshing,
             "collection_driver": self.source.collection_driver,
+            "freshness_status": freshness,
+            "issue_codes": issues,
         }
 
     def to_dict(self) -> dict[str, Any]:
@@ -832,6 +850,7 @@ class CatalogService:
         self._max_wait_seconds = min(60.0, max(1.0, float(getattr(settings, "web_catalog_max_wait_seconds", 12.0))))
         self._lock = threading.RLock()
         self._scheduled_collection = os.getenv("WEB_SCHEDULED_COLLECTION", "").lower() == "true"
+        self._dispatch_watchdog = CatalogDispatchWatchdog()
         cache_path = getattr(settings, "web_catalog_cache_path", None)
         self._cache_store = CatalogCacheStore(cache_path) if cache_path else None
         self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="catalog-scan")
@@ -886,7 +905,9 @@ class CatalogService:
     def _refresh_loop(self, interval_seconds: float) -> None:
         while not self._refresh_stop.is_set():
             try:
-                self.get_many(source_id="all", refresh=True)
+                results = self.get_many(source_id="all", refresh=True)
+                if self._scheduled_collection:
+                    self._dispatch_watchdog.check(results)
             except Exception as exc:
                 # A single source must not stop the catalog refresh loop.
                 logging.getLogger(__name__).warning("catalog_refresh_failed type=%s", type(exc).__name__)
@@ -900,11 +921,11 @@ class CatalogService:
         cached = self._last_cached(source, effective_grade)
         if self._scheduled_collection and source.collection_driver == "scheduled":
             if not cached:
-                return CatalogResult(source, effective_grade, "", (), ("定期収集の初回データを待っています。公式ページをご確認ください。",))
+                return CatalogResult(source, effective_grade, "", (), ("定期収集の初回データを待っています。公式ページをご確認ください。",), freshness_status="pending")
             result = cached[1]
             age = (datetime.now(timezone.utc) - datetime.fromisoformat(result.scanned_at)).total_seconds()
             if age > 5400:
-                return replace(result, warnings=("定期収集が遅れています。前回確認した情報です。公式ページもご確認ください。",))
+                return replace(result, warnings=("定期収集が遅れています。前回確認した情報です。公式ページもご確認ください。",), freshness_status="stale")
             return result
         if not refresh and cached and time.monotonic() - cached[0] < self._cache_ttl_seconds:
             return cached[1]
@@ -913,17 +934,17 @@ class CatalogService:
         except Exception:
             if not cached:
                 raise
-            result = replace(cached[1], warnings=("最新情報を確認できませんでした。前回取得した情報を表示しています。公式ページも確認してください。",))
+            result = replace(cached[1], warnings=("最新情報を確認できませんでした。前回取得した情報を表示しています。公式ページも確認してください。",), freshness_status="stale")
             with self._lock:
                 self._cache[key] = (time.monotonic(), result)
             return result
         if result.warnings and cached:
             # A failed PDF must not silently erase the last readable version.
             fetched_urls = {notice.url for notice in result.notices if notice.extraction_status == "ok"}
-            retained = tuple(notice for notice in cached[1].notices if notice.url not in fetched_urls)
+            retained = tuple(notice for notice in cached[1].notices if notice.extraction_status == "ok" and notice.url not in fetched_urls)
             if retained:
                 retained_urls = {notice.url for notice in retained}
-                result = replace(result, notices=tuple(notice for notice in result.notices if notice.url not in retained_urls) + retained, warnings=result.warnings + ("一部は前回取得した情報です。原文で最新情報を確認してください。",))
+                result = replace(result, notices=tuple(notice for notice in result.notices if notice.url not in retained_urls) + retained, warnings=result.warnings + ("一部は前回取得した情報です。原文で最新情報を確認してください。",), freshness_status="stale")
         with self._lock:
             self._cache[key] = (time.monotonic(), result)
         if self._cache_store and not result.warnings:
@@ -996,7 +1017,7 @@ class CatalogService:
             except Exception as exc:
                 logging.getLogger(__name__).warning("source_scan_failed source=%s type=%s", source.id, type(exc).__name__)
                 fallback = results.get(source.id)
-                results[source.id] = replace(fallback, warnings=("最新情報を確認できません。前回取得した情報です。",), refreshing=False) if fallback else CatalogResult(source, self._effective_grade(source, grade), "", (), ("公開ページを確認できません。原文をご確認ください。",))
+                results[source.id] = replace(fallback, warnings=("最新情報を確認できません。前回取得した情報です。",), refreshing=False, freshness_status="stale") if fallback else CatalogResult(source, self._effective_grade(source, grade), "", (), ("公開ページを確認できません。原文をご確認ください。",))
         for future in not_done:
             source = future_sources[future]
             if source.id not in results:

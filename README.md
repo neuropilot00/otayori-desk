@@ -111,6 +111,18 @@ Railway 실행 환경에서는 무사시노시 공식 도메인이 HTTP 403을 �
 - 마지막 확인 후 90분 이상이면 지연 경고와 실제 확인 시각을 유지합니다. 최초 자료가 없으면 ‘자료 대기’ 경고를 표시합니다. 과거 캐시를 방금 수집한 정보처럼 표시하지 않습니다.
 - 수집 토큰은 공개 공지 캐시 쓰기에만 사용하며 학부모 쿠키·알림 구독 DB를 읽거나 수정하지 않습니다. 키 교체 시 양쪽 Secrets를 함께 교체하고 Railway를 재배포합니다.
 
+#### 예약 지연 복구 감시 (선택 설정)
+
+GitHub 예약은 실행 시각을 보장하지 않으며 실제로 수 시간 지연된 사례가 있습니다. [GitHub 공식 안내](https://docs.github.com/en/actions/how-tos/troubleshoot-workflows)를 참고하세요. Railway의 백그라운드 갱신 루프에는 저장된 시청 자료가 45분 이상 오래되거나 없을 때 동일한 수집 workflow를 수동 이벤트로 요청하는 감시 기능이 있습니다. **아래 최소 권한 토큰을 등록해야 활성화되며, 미설정 상태에서는 기존 GitHub 예약만 동작합니다.**
+
+1. GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens에서 만료일을 지정하고 `otayori-desk` 저장소 **하나만** 선택합니다.
+2. Repository permissions의 **Actions: Read and write**만 추가합니다(Metadata read는 기본 권한). Contents write, 계정 전체 repo 권한은 주지 않습니다. [워크플로 실행 권한](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event)
+3. 토큰은 채팅·파일·명령행에 붙이지 말고 Railway `otayori-web`의 Variables에 `CATALOG_DISPATCH_TOKEN`으로 직접 등록하고 재배포합니다. 기존 `CATALOG_SYNC_TOKEN`과 서로 다른 토큰입니다.
+4. **단일 웹 인스턴스에서만** 활성화합니다. 성공·실패 모두 최소 30분 간격, 인증 실패는 6시간 간격으로 제한하고 고정 GitHub API 주소로만 보냅니다. 리다이렉트·환경 프록시는 사용하지 않으며 토큰/응답 본문은 로그에 남기지 않습니다.
+5. 실행 요청 성공은 수집 완료가 아닙니다. 검증된 스냅샷이 실제 저장된 경우에만 확인 시각이 바뀝니다. 배포 후 workflow 실행 기록, 21개 출처의 `checked_at`, `freshness_status`를 확인합니다. GitHub 자체 장애나 큐 지연까지 제거하는 기능은 아닙니다.
+
+화면에서는 `freshness_status`와 `issue_codes`로 갱신 지연·본문 판독 실패·조회 실패를 구분합니다. 긴 출처별 설명은 접힌 `収集範囲・確認状況` 안에 표시하며, 과거 자료 건수 한도만 도달한 경우는 오류 경고가 아닙니다. 실제 판독 실패와 원문 링크는 숨기지 않습니다.
+
 ### 브라우저 알림과 앱 전환
 
 `通知を受け取る` 버튼은 PWA Service Worker와 Web Push를 사용합니다. 안내 동의 후 브라우저 권한을 허용하면 선택한 학교·학년·피드·발신처 조건이 서버에 저장됩니다. 수신자별 전송 수락 기록을 DB에 남겨 성공한 구독자에게 반복 발송하지 않고, 일부 소스 실패나 초기 등록 때는 과거 자료를 일괄 발송하지 않습니다. 다만 공급자가 전송을 수락한 직후 프로세스가 중단되는 경우 중복 가능성이 남으므로 exactly-once 또는 실제 단말 수신을 보장하지 않습니다. 잠금화면에는 학교·학년·공지 제목을 노출하지 않습니다. 앱 전환 시 `scope` 계약은 재사용하되 별도 사용자 인증·네이티브 토큰 보안 검증이 필요합니다.
@@ -170,7 +182,7 @@ Railway에서는 `WEB_PUSH_DATABASE_PATH`를 영속 볼륨 경로로 지정하�
 
 ## 動作
 
-1. GitHub Actions が30分ごとに学校ページを取得します。
+1. LINE設定を有効にした場合、GitHub Actions の30分間隔の予約で学校ページを取得します（GitHub側の実行遅延はあり得ます）。
 2. ページ内の学校だより・学年だよりの PDF/リンクを抽出します。
 3. ETag / Last-Modified が使える場合は条件付き取得を行い、取得した文書の SHA-256 も比較します。
 4. 学年だよりは指定学年の見出しから次の学年見出しの直前までだけを抽出します。学校だよりは全校共通の連絡として保持します。
@@ -211,7 +223,7 @@ Repository의 `Settings → Secrets and variables → Actions`에서 다음을 �
 
 ### 3. Repository Variable로 학년 변경
 
-`Settings → Secrets and variables → Actions → Variables`에서 `SCHOOL_GRADE`를 설정하면 다음 예약 실행부터 적용됩니다.
+`Settings → Secrets and variables → Actions → Variables`에서 `SCHOOL_GRADE`를 설정하면 다음 예약 실행부터 적용됩니다. LINE을 실제 사용할 때만 두 LINE Secrets를 먼저 등록하고 Repository Variable `LINE_NOTIFICATIONS_ENABLED=true`를 설정합니다. 미설정 상태에서는 예약 LINE 작업을 건너뛰며 웹앱 알림에는 영향이 없습니다. 수동 `dry_run`은 기본 true이고 LINE 토큰 없이 사용할 수 있습니다. PDF 판독 실패는 미리보기에서도 실패로 보고하며 전송하지 않습니다.
 
 예시:
 

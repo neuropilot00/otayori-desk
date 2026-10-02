@@ -19,7 +19,9 @@ const event = (id, date, fields = {}) => notice(id, {
 function frontend({ api, timers } = {}) {
   const elements = new Map();
   const element = () => ({
-    innerHTML: "", textContent: "", hidden: false, value: "all",
+    innerHTML: "", _textContent: "", hidden: false, open: false, value: "all",
+    get textContent() { return this.innerHTML ? this.innerHTML.replace(/<[^>]+>/g, "") : this._textContent; },
+    set textContent(value) { this.innerHTML = ""; this._textContent = value; },
     attributes: {}, querySelector: () => null, querySelectorAll: () => [],
     setAttribute(name, value) { this.attributes[name] = value; },
     replaceChildren() { this.innerHTML = ""; },
@@ -175,8 +177,8 @@ test("coverage exposes source failures, limits, counts, official links, and stat
   assert.match(html, /status-reference/);
   assert.match(html, /新着通知の確認対象ではありません/);
   assert.match(html, /確認日時 —/);
-  assert.match(app.get("coverage-alert").textContent, /桜野小学校（/);
-  assert.match(app.get("coverage-alert").textContent, /市のイベント（取得できませんでした）/);
+  assert.doesNotMatch(app.get("coverage-alert").textContent, /桜野小学校|市のイベント|収集上限/);
+  assert.match(app.get("coverage-alert").textContent, /取得できませんでした 1/);
   assert.equal(app.get("coverage-alert").hidden, false);
   assert.match(app.get("coverage-warnings").innerHTML, /市のイベント: 接続エラー/);
   app.renderCoverage({ complete: true, coverage: [{ source_name: "学校", status: "checked" }] });
@@ -194,6 +196,184 @@ test("backend text is escaped and executable URLs are omitted", () => {
   app.renderCoverage({ coverage: [{ source_name: injection, coverage_note: injection, status: "unavailable", page_url: "data:text/html,unsafe" }], warnings: [injection] });
   assert.doesNotMatch(app.get("coverage-list").innerHTML + app.get("coverage-warnings").innerHTML, /<img|href="data:/);
   assert.equal(app.officialLink("https://name:secret@example.com/", "link"), "");
+});
+
+test("archive caps are neutral detail-only information in new and legacy payloads", () => {
+  const app = frontend();
+  const source = { source_name: "学校", notice_count: 4, readable_count: 4, discovered_count: 25, limit_reached: true };
+  for (const fields of [
+    { status: "checked", freshness_status: "fresh", issue_codes: ["limit"] },
+    { status: "checked" },
+    { status: "partial" },
+  ]) {
+    app.renderCoverage({ complete: false, coverage: [{ ...source, ...fields }], warnings: ["学校: 収集上限あり"] });
+    assert.equal(app.get("coverage-alert").hidden, true);
+    assert.equal(app.get("coverage-details").open, false);
+    assert.match(app.get("coverage-list").innerHTML, /収集上限あり|一部の過去資料/);
+    assert.doesNotMatch(app.get("coverage-list").innerHTML + app.get("coverage-warnings").innerHTML, /status-(?:partial|unavailable|unknown)|本文未確認|取得できません/);
+  }
+});
+
+test("stale snapshots keep a neutral freshness reason without claiming extraction failure", () => {
+  const app = frontend();
+  app.renderCoverage({ complete: false, coverage: [{
+    source_name: "学校", status: "partial", freshness_status: "stale", issue_codes: ["stale"],
+    notice_count: 4, readable_count: 4, checked_at: "2026-09-01T01:00:00Z",
+  }], warnings: ["学校: 保存データの更新が遅れています"] });
+  assert.equal(app.get("coverage-alert").hidden, false);
+  assert.equal(app.get("coverage-alert").textContent, "更新遅れ 1 詳細");
+  assert.doesNotMatch(app.get("coverage-alert").className, /coverage-alert/);
+  const details = app.get("coverage-list").innerHTML + app.get("coverage-warnings").innerHTML;
+  assert.match(details, /前回取得した情報/);
+  assert.match(details, /取得 4件/);
+  assert.match(details, /2026\/09\/01/);
+  assert.doesNotMatch(details, /本文未確認|読み取れ|status-(?:partial|unavailable|unknown)/);
+});
+
+test("mixed stale and OCR sources produce bounded counts rather than a wall of source names", () => {
+  const app = frontend();
+  const coverage = Array.from({ length: 12 }, (_, i) => ({
+    source_name: `とても長い公開資料の発信元 ${i}`, status: "partial", notice_count: 5,
+    readable_count: i < 10 ? 5 : 3, freshness_status: "stale",
+    issue_codes: i < 10 ? ["stale", "limit"] : ["stale", "extraction", "extraction"],
+  }));
+  app.renderCoverage({ complete: false, coverage });
+  assert.equal(app.get("coverage-alert").textContent, "更新遅れ 12 · 本文未確認 2 詳細");
+  assert.doesNotMatch(app.get("coverage-alert").textContent, /発信元|収集上限/);
+  assert.equal((app.get("coverage-list").innerHTML.match(/class="coverage-source"/g) || []).length, 12);
+  assert.equal(app.get("coverage-details").open, false);
+  assert.match(app.get("coverage-list").innerHTML, /本文 3 \/ 資料 5/);
+  assert.match(app.get("coverage-list").innerHTML, /本文を読み取れない資料/);
+});
+
+test("collection failures and unavailable sources are not mislabeled as unreadable text", () => {
+  const app = frontend();
+  for (const issue of ["collection", "unavailable"]) {
+    app.renderCoverage({ coverage: [{ source_name: "学校", status: issue === "unavailable" ? "unavailable" : "partial", freshness_status: "stale", issue_codes: [issue, "stale"], notice_count: 3, readable_count: 3 }] });
+    assert.match(app.get("coverage-alert").textContent, new RegExp(`${app.t(`coverage.${issue}`)} 1`));
+    assert.match(app.get("coverage-alert").innerHTML, /status-unavailable/);
+    assert.match(app.get("coverage-list").innerHTML, /取得できませんでした/);
+    assert.doesNotMatch(app.get("coverage-alert").textContent + app.get("coverage-list").innerHTML, /本文未確認|本文を読み取れない/);
+  }
+});
+
+test("pending and refreshing do not imply failure, while unknown never claims success", () => {
+  const app = frontend();
+  app.renderCoverage({ complete: false, coverage: [{ source_name: "学校", status: "unavailable", freshness_status: "pending", issue_codes: ["refreshing"], notice_count: 0, readable_count: 0 }] });
+  assert.match(app.get("coverage-alert").textContent, /初回確認待ち 1/);
+  assert.match(app.get("coverage-alert").textContent, /更新確認中 1/);
+  assert.doesNotMatch(app.get("coverage-list").innerHTML, /status-unavailable|status-partial|本文未確認|取得できません/);
+  app.renderCoverage({ coverage: [{ source_name: "学校", status: "checked", freshness_status: "unknown", issue_codes: [] }] });
+  assert.equal(app.get("coverage-alert").hidden, false);
+  assert.match(app.get("coverage-list").innerHTML, /確認状況不明/);
+  assert.doesNotMatch(app.get("coverage-list").innerHTML, /公開範囲を確認/);
+});
+
+test("a real scheduled first-run payload remains pending despite its legacy unavailable status and warning", async () => {
+  const payload = {
+    scanned_at: "", source_count: 1, notice_count: 0, reference_count: 0, notices: [],
+    complete: false, refreshing: false,
+    warnings: ["市のイベント: 定期収集の初回データを待っています。公式ページをご確認ください。"],
+    coverage: [{
+      source_id: "city-events", source_name: "市のイベント", page_url: "https://city.example/events/",
+      checked_at: "", status: "unavailable", coverage_kind: "notices", coverage_note: "公開ページの資料が対象です。",
+      notice_count: 0, readable_count: 0, discovered_count: 0, limit_reached: false,
+      refreshing: false, collection_driver: "scheduled", freshness_status: "pending", issue_codes: [],
+    }],
+  };
+  const app = pollingFrontend(async () => payload);
+  await app.loadNotices();
+  await app.timers.advance(120000);
+  assert.equal(app.get("coverage-alert").textContent, "初回確認待ち 1 詳細");
+  assert.match(app.get("coverage-list").innerHTML, /初回の取得結果を待っています/);
+  assert.match(app.get("coverage-warnings").innerHTML, /定期収集の初回データを待っています/);
+  assert.doesNotMatch(app.get("coverage-alert").innerHTML + app.get("coverage-list").innerHTML + app.get("coverage-warnings").innerHTML, /status-(?:unavailable|partial|unknown)|収集の問題|本文未確認|取得できません/);
+  assert.equal(app.get("coverage-details").open, false);
+  assert.equal(app.calls.length, 1);
+  assert.equal(app.timers.size, 0);
+  assert.deepEqual(payload.coverage[0].issue_codes, [], "rendering must not mutate the backend payload");
+});
+
+test("legacy partial statuses and unexplained errors stay visible even alongside a cap", () => {
+  const app = frontend();
+  for (const payload of [
+    { coverage: [{ source_name: "学校", status: "partial" }] },
+    { coverage: [{ source_name: "学校", status: "partial", limit_reached: true }] },
+    { coverage: [{ source_name: "学校", status: "checked", limit_reached: true }], warnings: ["学校: 接続エラー"] },
+    { coverage: [{ source_name: "学校", status: "checked", issue_codes: ["limit"] }], errors: [{ source_name: "学校", message: "接続エラー" }] },
+    { coverage: [{ source_name: "学校", status: "checked", issue_codes: [] }], warnings: ["学校: 接続エラー"] },
+    { coverage: [{ source_name: "学校", status: "checked", issue_codes: ["limit"] }], warnings: ["別の資料: 接続エラー"] },
+  ]) {
+    app.renderCoverage(payload);
+    assert.equal(app.get("coverage-alert").hidden, false);
+    assert.match(app.get("coverage-alert").textContent, /収集の問題 1/);
+    assert.doesNotMatch(app.get("coverage-alert").textContent, /本文未確認/);
+  }
+  app.renderCoverage({ coverage: [{ source_name: "学校", status: "checked", issue_codes: ["future-issue"] }] });
+  assert.equal(app.get("coverage-alert").hidden, false);
+  assert.match(app.get("coverage-alert").textContent, /確認状況不明/);
+});
+
+test("legacy refreshing warnings stay neutral, and readable deficits still expose extraction failures", () => {
+  const app = frontend();
+  const source = { source_name: "学校", status: "partial", notice_count: 2, readable_count: 2, refreshing: true };
+  const warnings = ["学校: 更新確認中です。前回取得した情報を表示しています。"];
+  app.renderCoverage({ coverage: [source], warnings });
+  assert.equal(app.get("coverage-alert").textContent, "更新確認中 1 詳細");
+  assert.doesNotMatch(app.get("coverage-list").innerHTML + app.get("coverage-warnings").innerHTML, /status-unavailable|status-partial|本文未確認/);
+  app.renderCoverage({ coverage: [{ ...source, readable_count: 0 }], warnings });
+  assert.match(app.get("coverage-alert").textContent, /本文未確認 1/);
+  assert.match(app.get("coverage-list").innerHTML, /本文 0 \/ 資料 2/);
+});
+
+test("coverage link toggles details, follows native summary changes, and preserves open state on rerender", () => {
+  const app = frontend();
+  const alert = app.get("coverage-alert");
+  const details = app.get("coverage-details");
+  const link = app.get("coverage-toggle");
+  alert.querySelector = (selector) => selector === "#coverage-toggle" ? link : null;
+  const payload = { coverage: [{ source_name: "学校", status: "partial", issue_codes: ["stale"] }] };
+  app.renderCoverage(payload);
+  assert.equal(details.open, false);
+  assert.match(alert.innerHTML, /href="#coverage-details" aria-controls="coverage-details" aria-expanded="false"/);
+  let prevented = false;
+  link.onclick({ preventDefault() { prevented = true; } });
+  details.ontoggle();
+  assert.equal(prevented, true);
+  assert.equal(details.open, true);
+  assert.equal(link.attributes["aria-expanded"], "true");
+  assert.equal(link.textContent, "閉じる");
+  app.renderCoverage(payload);
+  assert.equal(details.open, true);
+  assert.match(alert.innerHTML, /aria-expanded="true"/);
+  link.onclick({ preventDefault() {} });
+  details.ontoggle();
+  assert.equal(details.open, false);
+  assert.equal(link.attributes["aria-expanded"], "false");
+  // Simulate opening via the native summary, then a locale change.
+  details.open = true;
+  details.ontoggle();
+  assert.equal(link.attributes["aria-expanded"], "true");
+  app.state.language = "ko";
+  app.renderCoverage(payload);
+  assert.equal(details.open, true);
+  assert.match(alert.innerHTML, /접기/);
+});
+
+test("coverage summaries and each reason are localized in JA, KO, EN and ZH", () => {
+  const app = frontend();
+  for (const language of ["ja", "ko", "en", "zh"]) {
+    app.state.language = language;
+    for (const issue of ["stale", "extraction", "collection", "unavailable", "refreshing", "pending", "unknown", "limit"]) {
+      app.renderCoverage({ coverage: [{ source_name: "日本語の発信元", status: "checked", freshness_status: "fresh", issue_codes: [issue] }] });
+      assert.ok(app.get("coverage-list").innerHTML.includes(app.I18N[language][`coverage.reason.${issue}`]), `${language}: ${issue}`);
+      assert.match(app.get("coverage-list").innerHTML, /日本語の発信元/);
+      if (issue !== "limit") {
+        assert.ok(app.get("coverage-alert").textContent.includes(`${app.I18N[language][`coverage.${issue}`]} 1`));
+        assert.ok(app.get("coverage-alert").textContent.includes(app.I18N[language]["coverage.details"]));
+      } else assert.equal(app.get("coverage-alert").hidden, true);
+    }
+  }
 });
 
 test("original-only notices retain their link and explanation without presenting it as extracted content", () => {
@@ -226,7 +406,7 @@ test("readable coverage stays distinct from retained document links without upgr
   const source = { source_name: "学校", status: "checked", notice_count: 3, readable_count: 1, discovered_count: 4 };
   app.renderCoverage({ coverage: [source] });
   assert.match(app.get("coverage-list").innerHTML, /本文 1 \/ 資料 3 · 候補 4件/);
-  assert.match(app.get("coverage-alert").textContent, /学校（一部のみ確認）/);
+  assert.match(app.get("coverage-alert").textContent, /本文未確認 1/);
   assert.equal(app.coverageStatus({ ...source, status: "unavailable" }), "unavailable");
   app.renderCoverage({ coverage: [{ ...source, readable_count: 3 }] });
   assert.match(app.get("coverage-list").innerHTML, /取得 3件/);
@@ -300,7 +480,7 @@ test("manual refresh polls ordinary GETs until fresh, without rerendering identi
   assert.equal(app.calls[0].options.method, "POST");
   assert.match(app.calls[0].url, /^\/api\/refresh\?/);
   assert.equal(app.get("refresh-button").disabled, false);
-  assert.match(app.get("coverage-alert").textContent, /最新の資料を確認中/);
+  assert.match(app.get("coverage-alert").textContent, /更新確認中/);
   await app.timers.advance(2000);
   assert.equal(app.calls.length, 2);
   assert.equal(app.detailCalls, 1);
@@ -332,6 +512,26 @@ test("initial GET also polls when only a source-level refreshing flag is set", a
   assert.equal(app.state.refreshStatus, null);
 });
 
+test("the new refreshing issue polls, but pending or stale snapshots alone do not", async () => {
+  const app = pollingFrontend(async (number) => ({ notices: [], coverage: [{ source_id: "school", status: "checked", freshness_status: number === 1 ? "pending" : "fresh", issue_codes: number === 1 ? ["refreshing"] : [] }] }));
+  const loading = app.loadNotices();
+  await flush();
+  assert.match(app.get("coverage-alert").textContent, /更新確認中 1/);
+  await app.timers.advance(2000);
+  await loading;
+  assert.equal(app.calls.length, 2);
+  assert.equal(app.get("coverage-alert").hidden, true);
+  assert.equal(app.timers.size, 0);
+  for (const freshness_status of ["pending", "stale", "unknown"]) {
+    const idle = pollingFrontend(async () => ({ notices: [], coverage: [{ source_id: "school", status: "partial", freshness_status, issue_codes: [] }] }));
+    await idle.loadNotices();
+    await idle.timers.advance(120000);
+    assert.equal(idle.calls.length, 1);
+    assert.equal(idle.timers.size, 0);
+    assert.equal(idle.get("coverage-alert").hidden, false);
+  }
+});
+
 test("partial extraction warnings alone never start a polling loop", async () => {
   const app = pollingFrontend(async () => ({ notices: [], complete: false, refreshing: false, warnings: ["本文を読み取れませんでした"] }));
   await app.loadNotices();
@@ -357,7 +557,8 @@ test("poll deadline aborts a slow GET, preserves cached notices and warnings, an
   assert.equal(app.calls[1].options.signal.aborted, true);
   assert.equal(app.state.refreshStatus, "refreshTimeout");
   assert.match(app.get("notice-list").innerHTML, /data-notice-id="cached"/);
-  assert.match(app.get("coverage-alert").textContent, /しばらくしてから更新/);
+  assert.match(app.get("coverage-alert").textContent, /確認が遅れています/);
+  assert.match(app.get("coverage-warnings").innerHTML, /しばらくしてから更新/);
   assert.match(app.get("coverage-warnings").innerHTML, /学校: 更新確認中/);
   assert.equal(app.get("refresh-button").disabled, false);
   assert.equal(app.timers.size, 0);
@@ -389,7 +590,8 @@ test("poll failure keeps cached content and reports failure without retrying for
   await app.timers.advance(2000);
   await loading;
   assert.match(app.get("notice-list").innerHTML, /data-notice-id="cached"/);
-  assert.match(app.get("coverage-alert").textContent, /最新情報の再確認に失敗/);
+  assert.match(app.get("coverage-alert").textContent, /再確認に失敗/);
+  assert.match(app.get("coverage-warnings").innerHTML, /最新情報の再確認に失敗/);
   assert.equal(app.state.refreshStatus, "refreshError");
   assert.equal(app.get("refresh-button").disabled, false);
   assert.equal(app.timers.size, 0);

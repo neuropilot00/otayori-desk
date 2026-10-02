@@ -58,6 +58,59 @@ class SnapshotTests(unittest.TestCase):
         result = self.catalog.get_many(source_id="city")[0]
         self.assertTrue(result.warnings)
         self.assertEqual(result.scanned_at, stale.scanned_at)
+        self.assertEqual(result.coverage()["freshness_status"], "stale")
+        self.assertEqual(result.coverage()["issue_codes"], ["stale"])
+
+    def test_initial_scheduled_wait_is_not_an_extraction_failure(self):
+        coverage = self.catalog.get_source("city").coverage()
+        self.assertEqual(coverage["freshness_status"], "pending")
+        self.assertEqual(coverage["issue_codes"], [])
+        self.assertEqual(coverage["checked_at"], "")
+
+    def test_background_refresh_checks_watchdog_only_in_scheduled_mode(self):
+        self.catalog.get_many = Mock(return_value=[self.result])
+        self.catalog._dispatch_watchdog.check = Mock()
+        with patch.object(self.catalog._refresh_stop, "wait", return_value=True):
+            self.catalog._refresh_loop(900)
+        self.catalog._dispatch_watchdog.check.assert_called_once_with([self.result])
+        self.catalog._dispatch_watchdog.check.reset_mock()
+        self.catalog._scheduled_collection = False
+        with patch.object(self.catalog._refresh_stop, "wait", return_value=True):
+            self.catalog._refresh_loop(900)
+        self.catalog._dispatch_watchdog.check.assert_not_called()
+
+    def test_coverage_distinguishes_archives_unreadable_pdfs_and_retrieval_errors(self):
+        self.assertEqual(self.result.coverage()["issue_codes"], [])
+        limited = replace(self.result, limit_reached=True, discovered_count=100)
+        self.assertEqual(limited.coverage()["issue_codes"], ["limit"])
+        self.assertEqual(limited.coverage()["status"], "checked")
+        unreadable = replace(limited, notices=(replace(self.notice, extraction_status="original_only"),), warnings=("OCR failed",))
+        self.assertEqual(unreadable.coverage()["issue_codes"], ["extraction", "limit"])
+        self.assertEqual(unreadable.coverage()["readable_count"], 0)
+        self.assertEqual(replace(self.result, warnings=("a linked page failed",)).coverage()["issue_codes"], ["collection"])
+        self.assertEqual(replace(self.result, notices=(), scanned_at="", warnings=("failed",)).coverage()["issue_codes"], ["unavailable"])
+        self.assertEqual(replace(self.result, refreshing=True, warnings=("checking",)).coverage()["issue_codes"], ["refreshing"])
+
+    def test_failed_rescan_retains_only_readable_previous_body_as_stale(self):
+        accept_snapshot(self.catalog, snapshot_payload(self.result))
+        self.catalog._scheduled_collection = False
+        failed = replace(self.result, notices=(replace(self.notice, extraction_status="original_only", text="Unreadable PDF"),), warnings=("OCR failed",))
+        self.catalog._scan_source = Mock(return_value=failed)
+        result = self.catalog.get_source("city", refresh=True)
+        self.assertEqual(result.notices[0].text, self.notice.text)
+        self.assertEqual(result.coverage()["freshness_status"], "stale")
+        self.assertTrue(result.warnings)
+
+    def test_repeated_unreadable_pdf_is_not_mislabeled_as_stale_cached_body(self):
+        self.catalog._scheduled_collection = False
+        failed = replace(self.result, notices=(replace(self.notice, extraction_status="original_only", text="Unreadable PDF"),), warnings=("OCR failed",))
+        self.catalog._scan_source = Mock(return_value=failed)
+        self.catalog.get_source("city", refresh=True)
+        updated = replace(failed, notices=(replace(failed.notices[0], text="Current OCR failure"),))
+        self.catalog._scan_source.return_value = updated
+        result = self.catalog.get_source("city", refresh=True)
+        self.assertEqual(result.notices[0].text, "Current OCR failure")
+        self.assertEqual(result.coverage()["issue_codes"], ["extraction"])
 
     def test_incomplete_source_is_not_exported(self):
         for result in (replace(self.result, warnings=("failed",)), replace(self.result, refreshing=True), replace(self.result, notices=(replace(self.notice, extraction_status="original_only"),))):
