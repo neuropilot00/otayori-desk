@@ -90,6 +90,27 @@ class SnapshotTests(unittest.TestCase):
             self.catalog._refresh_loop(900)
         self.catalog._dispatch_watchdog.check.assert_not_called()
 
+    @patch("sakurano_line_notifier.web_catalog.threading.Thread")
+    def test_background_start_warns_once_when_scheduled_recovery_is_disabled(self, thread):
+        self.catalog._dispatch_watchdog = SimpleNamespace(enabled=False)
+        with self.assertLogs("sakurano_line_notifier.web_catalog", level="WARNING") as logs:
+            self.catalog.start_background_refresh()
+            self.catalog.start_background_refresh()
+        self.assertEqual(len(logs.output), 1)
+        self.assertIn("catalog_recovery_disabled", logs.output[0])
+        self.assertIn("CATALOG_DISPATCH_TOKEN", logs.output[0])
+        thread.return_value.start.assert_called_once()
+
+    @patch("sakurano_line_notifier.web_catalog.threading.Thread")
+    def test_background_start_has_no_recovery_warning_when_enabled_or_not_scheduled(self, thread):
+        for scheduled, enabled in ((True, True), (False, False)):
+            with self.subTest(scheduled=scheduled, enabled=enabled):
+                self.catalog._scheduled_collection = scheduled
+                self.catalog._dispatch_watchdog = SimpleNamespace(enabled=enabled)
+                with self.assertNoLogs("sakurano_line_notifier.web_catalog", level="WARNING"):
+                    self.catalog.start_background_refresh()
+                self.catalog.stop_background_refresh()
+
     def test_coverage_distinguishes_archives_unreadable_pdfs_and_retrieval_errors(self):
         self.assertEqual(self.result.coverage()["issue_codes"], [])
         limited = replace(self.result, limit_reached=True, discovered_count=100)

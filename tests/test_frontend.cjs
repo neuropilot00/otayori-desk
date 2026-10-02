@@ -16,7 +16,7 @@ const event = (id, date, fields = {}) => notice(id, {
   feed_group: "events", date_kind: "event", date_label: date, event_date: date, published_label: "", ...fields,
 });
 
-function frontend({ api, timers } = {}) {
+function frontend({ api, timers, document: testDocument } = {}) {
   const elements = new Map();
   const element = () => ({
     innerHTML: "", _textContent: "", hidden: false, open: false, value: "all",
@@ -26,7 +26,7 @@ function frontend({ api, timers } = {}) {
     setAttribute(name, value) { this.attributes[name] = value; },
     replaceChildren() { this.innerHTML = ""; },
   });
-  const document = {
+  const document = testDocument || {
     addEventListener() {}, querySelectorAll: () => [],
     getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
   };
@@ -34,7 +34,8 @@ function frontend({ api, timers } = {}) {
     constructor(...args) { super(...(args.length ? args : ["2026-09-30T15:30:00Z"])); }
   }
   const context = vm.createContext({
-    document, localStorage: { getItem: () => null }, URL, URLSearchParams, Date: FixedDate, AbortController, DOMException,
+    document, localStorage: { getItem: () => null, setItem() {} }, URL, URLSearchParams, Date: FixedDate, AbortController, DOMException,
+    navigator: {}, window: {}, applyPilotLanguage() {}, pilotText: (key) => key, pilotStatus() {}, loadPilotConfig: async () => ({}),
     setTimeout: timers?.setTimeout || setTimeout, clearTimeout: timers?.clearTimeout || clearTimeout,
     pilotApi: api || (async () => notice("detail", { text: "日本語の本文" })),
   });
@@ -43,6 +44,102 @@ function frontend({ api, timers } = {}) {
 }
 const ids = (items) => Array.from(items, (item) => item.id);
 const flush = () => new Promise(setImmediate);
+
+// Model the rendered card/reader nodes and actual event handlers without a DOM dependency.
+// Replacing innerHTML discards children, just as it does in the browser.
+function readerDocument() {
+  function element(tag = "div", classes = "") {
+    const names = new Set(classes.split(/\s+/).filter(Boolean));
+    const listeners = new Map();
+    let html = "";
+    return {
+      tag, children: [], dataset: {}, attributes: {}, value: "all", hidden: false, open: false, scrollTop: 0,
+      classList: {
+        add: (...values) => values.forEach((value) => names.add(value)),
+        remove: (...values) => values.forEach((value) => names.delete(value)),
+        contains: (value) => names.has(value),
+        toggle: (value, enabled = !names.has(value)) => enabled ? names.add(value) : names.delete(value),
+      },
+      get innerHTML() { return html; },
+      set innerHTML(value) {
+        html = value;
+        this.children = [];
+        for (const match of value.matchAll(/<article class="([^"]+)" data-notice-id="([^"]+)">([\s\S]*?)<\/article>/g)) {
+          const card = element("article", match[1]);
+          card.dataset.noticeId = match[2];
+          const button = element("button");
+          button.setAttribute("aria-expanded", match[3].match(/aria-expanded="([^"]+)"/)[1]);
+          card.children = [button, element("div", "inline-detail")];
+          this.children.push(card);
+        }
+        for (const match of value.matchAll(/<details class="([^"]+)"([^>]*)><summary>([\s\S]*?)<\/summary>/g)) {
+          const section = element("details", match[1]);
+          section.open = /\bopen\b/.test(match[2]);
+          section.textContent = match[3];
+          this.children.push(section);
+        }
+        for (const match of value.matchAll(/<div class="original-copy"[^>]*>([\s\S]*?)<\/div>/g)) {
+          const copy = element("div", "original-copy");
+          copy.textContent = match[1];
+          this.children.push(copy);
+        }
+      },
+      get textContent() { return html.replace(/<[^>]+>/g, ""); },
+      set textContent(value) { this.innerHTML = String(value); },
+      get options() { return this.children; },
+      get selectedOptions() { return this.children.filter((child) => child.value === this.value); },
+      setAttribute(name, value) { this.attributes[name] = value; },
+      getAttribute(name) { return this.attributes[name]; },
+      appendChild(child) { this.children.push(child); },
+      replaceChildren() { this.innerHTML = ""; },
+      querySelectorAll(selector) {
+        const [tagName, ...classNames] = selector.split(".");
+        return this.children.flatMap((child) => [
+          ...((!tagName || child.tag === tagName) && classNames.every((name) => child.classList.contains(name)) ? [child] : []),
+          ...child.querySelectorAll(selector),
+        ]);
+      },
+      querySelector(selector) { return this.querySelectorAll(selector)[0] || null; },
+      addEventListener(name, callback) { if (!listeners.has(name)) listeners.set(name, []); listeners.get(name).push(callback); },
+      dispatch(name) { return Promise.all((listeners.get(name) || []).map((callback) => callback({ target: this }))); },
+      click() { if (!this.disabled) return this.dispatch("click"); },
+    };
+  }
+  const elements = new Map();
+  return Object.assign(element("document"), {
+    documentElement: {}, body: element("body"), createElement: element,
+    getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); },
+    querySelectorAll(selector) { return [...elements.values()].flatMap((node) => node.querySelectorAll(selector)); },
+  });
+}
+
+async function openedReader({ refresh, detail, load, timers } = {}) {
+  const item = notice("october-issue", {
+    title: "1年生 学年だより 10月号", kind_label: "学年だより", date_kind: "issue", date_label: "2026/10月号",
+    text: "長ぐつ（はきたい人だけ）", categories: { "持ち物・準備": ["長ぐつ（はきたい人だけ）"], "行事・予定": ["遠足"] },
+  });
+  const payload = { notices: [item], scanned_at: "2026-10-01T00:00:00Z" };
+  const calls = [];
+  const app = frontend({ document: readerDocument(), timers, api: async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url === "/api/config") return { sources: [{ id: "school", name: "桜野小学校" }], wards: [], default_source_id: "school", default_grade: "1年生" };
+    if (url.startsWith("/api/notices/")) return detail ? detail(item) : item;
+    if (url.startsWith("/api/refresh")) return refresh ? refresh(payload) : payload;
+    if (url.startsWith("/api/notices?")) return load ? load(payload) : payload;
+    return {};
+  } });
+  await app.document.dispatch("DOMContentLoaded");
+  await flush();
+  const card = () => app.get("notice-list").querySelector(".notice-card");
+  assert.ok(card(), app.get("filter-summary").textContent);
+  await card().querySelector("button").click();
+  app.get("language-filter").value = "ko";
+  await app.get("language-filter").dispatch("change");
+  await flush();
+  assert.equal(app.state.language, "ko");
+  assert.equal(card().querySelector("button").getAttribute("aria-expanded"), "true");
+  return { ...app, item, payload, calls, card };
+}
 
 function fakeTimers() {
   let now = 0;
@@ -639,6 +736,170 @@ test("cards keep click-to-expand and click-to-collapse state accessible", async 
   assert.equal(attributes["aria-expanded"], "false");
   assert.equal(inline.innerHTML, "");
   assert.equal(app.state.selectedId, null);
+});
+
+test("opening the October grade-one card, choosing KO and clicking refresh retains the reader through loading and polling", async () => {
+  const timers = fakeTimers();
+  let resolveRefresh;
+  const app = await openedReader({ timers, refresh: () => new Promise((resolve) => { resolveRefresh = resolve; }) });
+  const card = app.card();
+  const inline = card.querySelector(".inline-detail");
+  const sections = inline.querySelectorAll(".category-section");
+  assert.deepEqual(sections.map((section) => section.open), [true, false]);
+  sections[0].open = false;
+  sections[1].open = true;
+  const original = inline.querySelector(".original-copy");
+  original.scrollTop = 87;
+  const detailCalls = app.calls.filter((call) => call.url.startsWith("/api/notices/")).length;
+  const refreshing = app.get("refresh-button").click();
+  assert.equal(app.card(), card, "keep the visible card while the POST is pending");
+  assert.equal(app.state.payload, app.payload);
+  assert.equal(app.get("refresh-button").getAttribute("aria-busy"), "true");
+  assert.equal(app.get("loading-state").hidden, true, "do not insert a tall loader above the reader");
+  const request = app.calls.at(-1);
+  assert.equal(request.options.method, "POST");
+  const query = new URL(request.url, "https://test.example").searchParams;
+  assert.equal(query.get("source_id"), "school");
+  assert.equal(query.get("grade"), "1年生");
+  resolveRefresh({ ...app.payload, refreshing: true });
+  await flush();
+  assert.equal(app.card(), card, "the cached POST response must preserve the reader");
+  await timers.advance(2000);
+  await refreshing;
+  assert.equal(app.card(), card, "status-only polling must preserve the same reader");
+  assert.equal(card.classList.contains("expanded"), true);
+  assert.equal(card.querySelector("button").getAttribute("aria-expanded"), "true");
+  assert.equal(app.state.selectedId, app.item.id);
+  assert.deepEqual(sections.map((section) => section.open), [false, true]);
+  assert.equal(inline.querySelector(".original-copy"), original);
+  assert.equal(original.scrollTop, 87);
+  assert.match(inline.innerHTML, /Google 번역으로 읽기/);
+  assert.equal(app.calls.filter((call) => call.url.startsWith("/api/notices/")).length, detailCalls);
+  assert.equal(app.get("refresh-button").disabled, false);
+  assert.equal(timers.size, 0);
+});
+
+test("manual refresh rerenders changed notices with the selected card still expanded", async () => {
+  let refreshed = false;
+  const app = await openedReader({
+    refresh: (payload) => {
+      refreshed = true;
+      return { ...payload, notices: payload.notices.map((item) => ({ ...item, excerpt: "更新された本文" })) };
+    },
+    detail: (item) => ({ ...item, text: refreshed ? "更新された本文" : item.text }),
+  });
+  await app.get("refresh-button").click();
+  await flush();
+  assert.equal(app.state.selectedId, app.item.id);
+  assert.equal(app.card().classList.contains("expanded"), true);
+  assert.equal(app.card().querySelector("button").getAttribute("aria-expanded"), "true");
+  assert.match(app.card().querySelector(".inline-detail").innerHTML, /更新された本文/);
+});
+
+test("a failed manual refresh keeps the readable card and reports a localized retry error", async () => {
+  const app = await openedReader({ refresh: () => { throw new Error("offline"); } });
+  const card = app.card();
+  await app.get("refresh-button").click();
+  assert.equal(app.card(), card);
+  assert.equal(card.classList.contains("expanded"), true);
+  assert.match(card.querySelector(".inline-detail").innerHTML, /長ぐつ/);
+  assert.equal(app.state.payload, app.payload);
+  assert.equal(app.state.refreshStatus, "refreshError");
+  assert.match(app.get("coverage-warnings").innerHTML, /최신 정보 재확인에 실패/);
+  assert.equal(app.get("refresh-button").disabled, false);
+});
+
+test("manual refresh allows an already pending reader request to finish", async () => {
+  let calls = 0, resolveDetail;
+  const app = await openedReader({ detail: (item) => ++calls < 3 ? item : new Promise((resolve) => { resolveDetail = resolve; }) });
+  assert.match(app.card().querySelector(".inline-detail").innerHTML, /inline-loading/);
+  await app.get("refresh-button").click();
+  resolveDetail(app.item);
+  await flush();
+  assert.equal(app.card().classList.contains("expanded"), true);
+  assert.match(app.card().querySelector(".inline-detail").innerHTML, /長ぐつ/);
+  assert.doesNotMatch(app.card().querySelector(".inline-detail").innerHTML, /inline-loading/);
+});
+
+test("changing language during manual refresh updates the retained reader", async () => {
+  let resolveRefresh;
+  const app = await openedReader({ refresh: () => new Promise((resolve) => { resolveRefresh = resolve; }) });
+  const refreshing = app.get("refresh-button").click();
+  app.get("language-filter").value = "en";
+  await app.get("language-filter").dispatch("change");
+  resolveRefresh(app.payload);
+  await refreshing;
+  await flush();
+  assert.equal(app.state.language, "en");
+  assert.equal(app.card().classList.contains("expanded"), true);
+  assert.match(app.card().querySelector(".inline-detail").innerHTML, /Read in Google Translate/);
+});
+
+test("collapsing the card during a pending refresh does not reopen it", async () => {
+  let resolveRefresh;
+  const app = await openedReader({ refresh: () => new Promise((resolve) => { resolveRefresh = resolve; }) });
+  const refreshing = app.get("refresh-button").click();
+  await app.card()?.querySelector("button").click();
+  resolveRefresh(app.payload);
+  await refreshing;
+  assert.equal(app.state.selectedId, null);
+  assert.equal(app.card().classList.contains("expanded"), false);
+  assert.equal(app.card().querySelector(".inline-detail").innerHTML, "");
+});
+
+test("manual refresh uses the existing fallback when the opened notice disappears", async () => {
+  for (const notices of [[], [notice("replacement")]]) {
+    const app = await openedReader({ refresh: () => ({ notices }) });
+    await app.get("refresh-button").click();
+    await flush();
+    assert.equal(app.state.selectedId, notices[0]?.id || null);
+    assert.equal(app.document.querySelectorAll(".notice-card.expanded").length, 0);
+    if (!notices.length) {
+      assert.match(app.get("detail-panel").innerHTML, /detail-placeholder/);
+      assert.equal(app.get("empty-state").hidden, false);
+    } else {
+      assert.equal(app.card().dataset.noticeId, "replacement");
+    }
+  }
+});
+
+test("school and grade change handlers still clear the list and reset inline expansion", async () => {
+  for (const [filter, value] of [["source-filter", "all"], ["grade-filter", "2年生"]]) {
+    const app = await openedReader();
+    app.get(filter).value = value;
+    const changing = app.get(filter).dispatch("change");
+    assert.equal(app.card(), null);
+    assert.equal(app.state.payload, null);
+    await changing;
+    await flush();
+    assert.equal(app.document.querySelectorAll(".notice-card.expanded").length, 0);
+    assert.equal(app.card().querySelector("button").getAttribute("aria-expanded"), "false");
+    const request = app.calls.findLast((call) => call.url.startsWith("/api/notices?"));
+    const query = new URL(request.url, "https://test.example").searchParams;
+    assert.equal(query.get(filter === "source-filter" ? "source_id" : "grade"), value);
+  }
+});
+
+test("a filter change rejects late reader success and error before its list response arrives", async () => {
+  for (const fail of [false, true]) {
+    let detailCalls = 0, loadCalls = 0, resolveDetail, rejectDetail, resolveLoad;
+    const app = await openedReader({
+      detail: (item) => ++detailCalls === 3 ? new Promise((resolve, reject) => { resolveDetail = resolve; rejectDetail = reject; }) : item,
+      load: (payload) => ++loadCalls === 1 ? payload : new Promise((resolve) => { resolveLoad = resolve; }),
+    });
+    const previousDetail = app.get("detail-panel").innerHTML;
+    app.get("grade-filter").value = "2年生";
+    await app.get("grade-filter").dispatch("change");
+    if (fail) rejectDetail(new Error("stale-detail-error"));
+    else resolveDetail({ ...app.item, text: "stale-detail-text" });
+    await flush();
+    assert.equal(app.get("detail-panel").innerHTML, previousDetail);
+    assert.equal(app.card(), null);
+    resolveLoad({ notices: [] });
+    await flush();
+    assert.equal(app.state.selectedId, null);
+    assert.match(app.get("detail-panel").innerHTML, /detail-placeholder/);
+  }
 });
 
 test("manual refresh polls ordinary GETs until fresh, without rerendering identical cached data", async () => {

@@ -892,6 +892,11 @@ class CatalogService:
         with self._lock:
             if self._refresh_thread is not None:
                 return
+            if self._scheduled_collection and not self._dispatch_watchdog.enabled:
+                logging.getLogger(__name__).warning(
+                    "catalog_recovery_disabled reason=missing_or_invalid_CATALOG_DISPATCH_TOKEN "
+                    "scheduled_collection=external_only"
+                )
             self._refresh_stop.clear()
             self._refresh_thread = threading.Thread(
                 target=self._refresh_loop,

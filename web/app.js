@@ -335,16 +335,16 @@ function savePreferences() {
   localStorage.setItem("school-news-group", selectedValue("group-filter"));
 }
 
-function setLoading(value) {
+function setLoading(value, { preserveNotices = false } = {}) {
   state.loading = value;
-  $("loading-state").hidden = !value;
+  $("loading-state").hidden = !value || preserveNotices;
   const refreshButton = $("refresh-button");
   refreshButton.disabled = value;
   refreshButton.setAttribute("aria-busy", String(value));
   refreshButton.title = value ? t("status.loading") : t("actions.refresh");
   const refreshLabel = refreshButton.querySelector("[data-i18n='actions.refresh']");
   if (refreshLabel) refreshLabel.textContent = value ? t("status.loading") : t("actions.refresh");
-  if (value) {
+  if (value && !preserveNotices) {
     $("empty-state").hidden = true;
     $("notice-list").replaceChildren();
     $("coverage-details").hidden = true;
@@ -603,7 +603,16 @@ function noticeSections(notices, feed = state.feed, today = japanToday()) {
   return { active: dated.slice(0, 1), archive: dated.slice(1), undated: groups.find((group) => group.key === "unknown")?.items || [], references, total: updates.length };
 }
 
-function renderNotices(payload, { showInline = false } = {}) {
+function renderNotices(payload, { showInline = false, preserveUnchanged = false } = {}) {
+  // Status-only refreshes keep the actual reader nodes, including category
+  // toggles, scroll positions and any detail request still in flight.
+  if (preserveUnchanged && state.payload && JSON.stringify(payload.notices) === JSON.stringify(state.payload.notices)) {
+    state.payload = payload;
+    $("metric-scanned").textContent = formatScanTime(payload.scanned_at);
+    renderCoverage(payload);
+    renderAfterSchoolScope(payload);
+    return;
+  }
   state.payload = payload;
   state.notices = payload.notices || [];
   const list = $("notice-list");
@@ -721,7 +730,6 @@ function renderDetail(notice, card = null, showInline = true) {
 
 async function selectNotice(id, { showInline = true } = {}) {
   const detailRequestVersion = ++state.detailRequestVersion;
-  const requestVersion = state.requestVersion;
   const selectedCard = [...document.querySelectorAll(".notice-card")].find((card) => card.dataset.noticeId === id);
   if (showInline && selectedCard?.classList.contains("expanded") && state.selectedId === id) {
     selectedCard.classList.remove("expanded", "selected");
@@ -742,10 +750,10 @@ async function selectNotice(id, { showInline = true } = {}) {
   try {
     const suffix = queryString();
     const detail = await api(`/api/notices/${encodeURIComponent(id)}${suffix ? `?${suffix}` : ""}`);
-    if (state.selectedId !== id || requestVersion !== state.requestVersion || detailRequestVersion !== state.detailRequestVersion) return;
+    if (state.selectedId !== id || detailRequestVersion !== state.detailRequestVersion) return;
     renderDetail(detail, selectedCard, showInline);
   } catch (error) {
-    if (state.selectedId !== id || requestVersion !== state.requestVersion || detailRequestVersion !== state.detailRequestVersion) return;
+    if (state.selectedId !== id || detailRequestVersion !== state.detailRequestVersion) return;
     const message = `<div class="detail-placeholder"><div class="placeholder-mark" aria-hidden="true">!</div><p class="eyebrow">${escapeHtml(t("detail.errorEyebrow"))}</p><h3>${escapeHtml(t("detail.errorTitle"))}</h3><p>${escapeHtml(error.message)}</p></div>`;
     $("detail-panel").innerHTML = message;
     if (selectedCard && showInline) {
@@ -779,11 +787,15 @@ async function loadNotices(refresh = false) {
   const controller = new AbortController();
   state.requestController = controller;
   state.refreshStatus = null;
-  state.payload = null;
+  if (!refresh) {
+    // Filter loads invalidate old details; a refresh of the same scope does not.
+    state.detailRequestVersion += 1;
+    state.payload = null;
+  }
   let pollTimeout = null;
   let polling = false;
   let timedOut = false;
-  setLoading(true);
+  setLoading(true, { preserveNotices: refresh && Boolean(state.payload) });
   try {
     const query = queryString();
     const getPath = `/api/notices${query ? `?${query}` : ""}`;
@@ -792,7 +804,7 @@ async function loadNotices(refresh = false) {
     let payload = await api(path, options);
     if (requestVersion !== state.requestVersion || controller.signal.aborted) return;
     state.refreshStatus = payloadRefreshing(payload) ? "refreshing" : null;
-    renderNotices(payload);
+    renderNotices(payload, { showInline: refresh && document.querySelectorAll(".notice-card.expanded").length > 0, preserveUnchanged: refresh });
     setLoading(false);
     if (payloadRefreshing(payload)) {
       polling = true;
@@ -803,16 +815,7 @@ async function loadNotices(refresh = false) {
         payload = await api(getPath, { signal: controller.signal });
         if (requestVersion !== state.requestVersion || controller.signal.aborted) return;
         state.refreshStatus = payloadRefreshing(payload) ? "refreshing" : null;
-        // Collection timestamps/status can change every poll while the notices
-        // do not. Do not close the reader or keep invalidating its detail request.
-        if (JSON.stringify(payload.notices) !== JSON.stringify(state.payload?.notices)) {
-          renderNotices(payload, { showInline: document.querySelectorAll(".notice-card.expanded").length > 0 });
-        } else {
-          state.payload = payload;
-          $("metric-scanned").textContent = formatScanTime(payload.scanned_at);
-          renderCoverage(payload);
-          renderAfterSchoolScope(payload);
-        }
+        renderNotices(payload, { showInline: document.querySelectorAll(".notice-card.expanded").length > 0, preserveUnchanged: true });
       }
     }
     if (refresh) {
@@ -820,7 +823,7 @@ async function loadNotices(refresh = false) {
     }
   } catch (error) {
     if (requestVersion !== state.requestVersion) return;
-    if (polling && (timedOut || error?.name !== "AbortError")) {
+    if ((polling || (refresh && state.payload)) && (timedOut || error?.name !== "AbortError")) {
       state.refreshStatus = timedOut ? "refreshTimeout" : "refreshError";
       renderCoverage(state.payload);
       return;
@@ -862,7 +865,7 @@ function setupLanguage() {
   $("language-filter").addEventListener("change", (event) => {
     const showInline = document.querySelectorAll(".notice-card.expanded").length > 0;
     applyLanguage(event.target.value);
-    if (state.payload && !state.loading) renderNotices(state.payload, { showInline });
+    if (state.payload) renderNotices(state.payload, { showInline });
   });
 }
 
@@ -1157,6 +1160,7 @@ async function deleteDeviceData() {
     state.push.subscribed = false;
     state.push.scopes = []; state.push.scopesKnown = true;
     state.requestVersion += 1;
+    state.detailRequestVersion += 1;
     state.requestController?.abort();
     state.refreshStatus = null;
     setLoading(false);
