@@ -1,4 +1,4 @@
-pypdf==6.16.2
+pypdf==6.19.0
 requests==2.34.2
 pywebpush==2.5.0
 psycopg[binary]==3.3.6

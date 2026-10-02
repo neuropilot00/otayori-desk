@@ -31,4 +31,8 @@ Sakurano Asobee's two-page public PDF cannot safely be transcribed by the curren
 
 ## Deployment evidence
 
-Pending release verification; append actual commit, workflow and runtime results after deployment.
+- Functional repair commit `cf5f1f5b79b8b65db6535abb957e1825c443f61c` was pushed. Railway deployment `7ea97435-a653-44e4-a5d9-1976a236b88f` succeeded.
+- Its [CI run](https://github.com/neuropilot00/otayori-desk/actions/runs/36954498857) passed application tests but **failed** the dependency audit: eight newly reported advisories affect the already-pinned `pypdf==6.16.2`. This is not ignored or called a passing release.
+- Minimal remediation: pin `pypdf==6.19.0`, the highest required fixed version across `PYSEC-2026-4153` through `PYSEC-2026-4160`. [Official release](https://github.com/py-pdf/pypdf/releases/tag/6.19.0). These cover excessive memory/CPU processing crafted PDF objects, fonts, streams, labels, forms and attachments. PDF parsing and text extraction are used in this service; not every affected API is reachable, but no advisory is waived.
+- License of the updated direct package remains BSD-3-Clause (verified installed package metadata); no new runtime package is introduced. `pip check` passes.
+- After the patch, the full **213 Python tests** pass again and `pip-audit -r requirements.txt --format cyclonedx-json --output state/coverage-expansion-security-sbom.json` reports **no known vulnerabilities** across resolved direct/transitive requirements. The generated local SBOM is ignored operational output, not a secret or production input. CI and security-patch runtime results follow below.
