@@ -500,6 +500,19 @@ class ScannerSecurityTests(unittest.TestCase):
         self.notifier.scan_subscriptions()
         self.notifier._send.assert_not_called()
 
+    def test_reclassified_admission_source_never_sends_as_life_notice(self):
+        from sakurano_line_notifier.web_catalog import load_sources
+        source = next(s for s in load_sources(Path(__file__).resolve().parents[1] / "sources.json") if s.id == "musashino_gakudo_notices")
+        self.subscribe()
+        self.scan("old")
+        admission = result("new-enrollment", source_id=source.id, coverage_kind=source.coverage_kind)
+        self.catalog.get_many.return_value = [result("old"), admission]
+        self.notifier.scan_subscriptions()
+        self.notifier._send.assert_not_called()
+        ledger = self.notifier.store.subscriptions()[0]["delivery_state"]
+        self.assertNotIn("new-enrollment", ledger["known_ids"])
+        self.assertNotIn(source.id, ledger["source_ids"])
+
     def test_legacy_migration_preserves_pending_until_provider_acceptance(self):
         self.subscribe()
         record = self.notifier.store.subscriptions()[0]

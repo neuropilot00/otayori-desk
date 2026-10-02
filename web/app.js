@@ -19,20 +19,24 @@ const REFRESH_POLL_TIMEOUT_MS = 60000;
 
 const I18N = {
   ja: {
+    "kind.gakudo_admissions": "入会・制度案内", "kind.gakudo_facility": "学童の施設案内", "kind.asobee_reference": "あそべえの利用案内", "kind.asobee_letter": "あそべえだより", "kind.gakudo_daily": "学童の生活連絡",
+    "reference.note": "入会・制度・施設などの参考資料です。日々の連絡・新着通知の対象ではありません。",
+    "afterSchool.notCollected": "学童の生活連絡：未収集", "afterSchool.registered": "学童の生活連絡：収集対象に登録",
+    "afterSchool.notCollectedNote": "予定・持ち物・保護者向け連絡は未収集。入会案内・あそべえだよりとは別です。", "afterSchool.registeredNote": "登録された発信元の取得状況です。すべての連絡の取得を保証するものではありません。",
     "detail.attachments": "添付資料（公式原文）", "detail.attachmentsNote": "リンク先の添付本文は自動確認の対象外です。内容・変更は原文でご確認ください。",
     "status.refreshing": "最新の資料を確認中です…", "status.refreshTimeout": "確認に時間がかかっています。しばらくしてから更新してください。", "status.refreshError": "最新情報の再確認に失敗しました。表示中の情報と原文をご確認ください。",
     "extraction.unverified": "本文未確認", "coverage.readable": "本文", "coverage.documents": "資料",
     "coverage.stale": "更新遅れ", "coverage.extraction": "本文未確認", "coverage.pending": "初回確認待ち", "coverage.refreshing": "更新確認中", "coverage.details": "詳細", "coverage.close": "閉じる", "coverage.refreshTimeout": "確認が遅れています", "coverage.refreshError": "再確認に失敗",
     "coverage.collection": "収集の問題", "coverage.reason.collection": "一部の公開ページ・資料を取得できませんでした。公式ページをご確認ください。",
     "coverage.reason.stale": "最新の更新をまだ確認できていません。前回取得した情報を表示しています。", "coverage.reason.extraction": "本文を読み取れない資料があります。公式の原文をご確認ください。", "coverage.reason.unavailable": "公開ページを取得できませんでした。公式ページをご確認ください。", "coverage.reason.limit": "収集上限のため、一部の過去資料は対象外です。", "coverage.reason.refreshing": "最新の資料を確認中です。", "coverage.reason.pending": "初回の取得結果を待っています。", "coverage.reason.unknown": "最終確認の状況を確認できていません。", "coverage.reason.partial": "一部の資料を確認できていません。下の確認内容と公式原文をご確認ください。",
-    "common.event": "開催", "common.deadline": "締切", "events.upcoming": "開催・締切が近い順", "events.past": "終了したイベント", "reference.title": "施設案内（連絡帳ではありません）",
-    "coverage.title": "収集範囲・確認状況", "coverage.official": "公式ページ ↗", "coverage.checked": "公開範囲を確認", "coverage.partial": "一部のみ確認", "coverage.reference": "施設案内", "coverage.unavailable": "取得できませんでした", "coverage.unknown": "確認状況不明", "coverage.collected": "取得", "coverage.discovered": "候補", "coverage.limit": "収集上限あり", "coverage.checkedAt": "確認日時", "coverage.attention": "確認の注意", "coverage.sourceUnknown": "発信元未確認",
+    "common.event": "開催", "common.deadline": "締切", "events.upcoming": "開催・締切が近い順", "events.past": "終了したイベント", "reference.title": "参考資料（入会・制度・施設案内）",
+    "coverage.title": "収集範囲・確認状況", "coverage.official": "公式ページ ↗", "coverage.checked": "公開範囲を確認", "coverage.partial": "一部のみ確認", "coverage.reference": "参考資料", "coverage.unavailable": "取得できませんでした", "coverage.unknown": "確認状況不明", "coverage.collected": "取得", "coverage.discovered": "候補", "coverage.limit": "収集上限あり", "coverage.checkedAt": "確認日時", "coverage.attention": "確認の注意", "coverage.sourceUnknown": "発信元未確認",
     "page.title": "おたより desk — 学校のお知らせベータ", "brand.subtitle": "東京の学校だより / ベータ", "status.public": "公開ページを確認中", "status.errorPrefix": "確認できませんでした：", "language.label": "表示言語", "theme.toggle": "テーマを切り替え", "detail.view": "詳細を見る",
     "hero.eyebrow": "保護者向けベータ · 公開ソース", "hero.title": "学校のお知らせを、<br><em>ひとつにまとめて</em>。",
     "hero.lede": "学校ごとに別々のページを探さなくても、学校だより・学年だより・行事のお知らせをここでまとめて確認できます。", "hero.note": "お子さまの学校・学年を選ぶと、必要なお知らせだけを表示します。",
     "metrics.schools": "登録校", "metrics.schoolsFoot": "小・中・高のサンプル", "metrics.notices": "今回の掲載数", "metrics.noticesFoot": "公開原文を基準", "metrics.wards": "対応地域", "metrics.wardsFoot": "23区拡張用レジストリ", "metrics.scanned": "最終確認", "metrics.scannedFoot": "キャッシュ5分・手動更新可",
     "workspace.eyebrow": "うちの子の学校デスク", "workspace.title": "今日確認したいお知らせ", "actions.refresh": "今すぐ更新", "actions.notifications": "通知を受け取る", "feeds.notices": "学校・生活", "feeds.events": "イベント",
-    "groups.school": "学校", "groups.municipality": "武蔵野市・教育委員会／市役所", "groups.afterSchool": "学童",
+    "groups.school": "学校", "groups.municipality": "武蔵野市・教育委員会／市役所", "groups.afterSchool": "学童・あそべえ",
     "filters.change": "学校・学年を変更", "filters.school": "学校", "filters.allSchools": "すべての学校", "filters.group": "発信元", "filters.allGroups": "すべての発信元", "filters.level": "学校種別", "filters.all": "すべて", "filters.ward": "地域", "filters.allAreas": "すべての地域", "filters.grade": "学年", "filters.nearby": "近くの学校を探す", "filters.map": "地図で見る ↗",
     "levels.elementary": "小学校", "levels.middle": "中学校", "levels.high": "高等学校", "grades.one": "1年生", "grades.two": "2年生", "grades.three": "3年生", "grades.four": "4年生", "grades.five": "5年生", "grades.six": "6年生", "grades.all": "全学年",
     "status.checking": "学校のページを確認しています。", "status.loading": "学校ページを確認中です…", "empty.title": "表示できるお知らせがありません", "empty.body": "絞り込みを変えるか、もう一度更新してください。",
@@ -42,46 +46,59 @@ const I18N = {
     "kind.grade": "学年だより", "kind.school": "学校だより", "kind.afterSchool": "学童クラブ", "kind.city": "市・教育委員会", "kind.related": "関連資料", "category.supplies": "持ち物・準備", "category.submission": "提出物・締切", "category.events": "行事・予定", "category.parent": "保護者への連絡", "category.school": "学校全体への連絡", "category.study": "学習予定", "notifications.unavailable": "この公開ベータでは通知設定を準備中です。", "notifications.permission": "ブラウザの通知を許可してください。", "notifications.ready": "この条件の新着を通知します。", "notifications.enabled": "通知設定済み", "notifications.error": "通知を設定できませんでした。",
   },
   ko: {
+    "kind.gakudo_admissions": "입회·제도 안내", "kind.gakudo_facility": "학동 시설 안내", "kind.asobee_reference": "아소베에 이용 안내", "kind.asobee_letter": "아소베에 소식지", "kind.gakudo_daily": "학동 생활연락",
+    "reference.note": "입회·제도·시설 등의 참고자료입니다. 일상 연락이나 새 소식 알림 대상이 아닙니다.",
+    "afterSchool.notCollected": "학동 생활연락: 미수집", "afterSchool.registered": "학동 생활연락: 수집 대상에 등록",
+    "afterSchool.notCollectedNote": "일정·준비물·보호자 연락은 아직 수집하지 않습니다. 입회 안내·아소베에 소식지와는 별개입니다.", "afterSchool.registeredNote": "등록된 출처의 수집 상태입니다. 모든 연락의 수집을 보장하지 않습니다.",
     "detail.attachments": "첨부자료 공식 원문", "detail.attachmentsNote": "첨부파일 본문은 자동 확인 대상이 아닙니다. 내용과 변경 사항은 원문에서 확인해 주세요.",
     "status.refreshing": "최신 자료를 확인 중입니다…", "status.refreshTimeout": "확인이 지연되고 있습니다. 잠시 후 다시 갱신해 주세요.", "status.refreshError": "최신 정보 재확인에 실패했습니다. 표시된 정보와 원문을 확인해 주세요.",
     "extraction.unverified": "본문 미확인", "coverage.readable": "본문", "coverage.documents": "자료",
     "coverage.stale": "갱신 지연", "coverage.extraction": "본문 미확인", "coverage.pending": "첫 확인 대기", "coverage.refreshing": "갱신 확인 중", "coverage.details": "상세", "coverage.close": "접기", "coverage.refreshTimeout": "확인이 지연되고 있습니다", "coverage.refreshError": "재확인 실패",
     "coverage.collection": "수집 문제", "coverage.reason.collection": "일부 공개 페이지나 자료를 가져오지 못했습니다. 공식 페이지를 확인해 주세요.",
     "coverage.reason.stale": "최신 변경 사항을 아직 확인하지 못해 이전에 수집한 정보를 표시합니다.", "coverage.reason.extraction": "본문을 읽지 못한 자료가 있습니다. 공식 원문을 확인해 주세요.", "coverage.reason.unavailable": "공개 페이지를 가져오지 못했습니다. 공식 페이지를 확인해 주세요.", "coverage.reason.limit": "수집 상한으로 일부 과거 자료는 대상에서 제외됩니다.", "coverage.reason.refreshing": "최신 자료를 확인 중입니다.", "coverage.reason.pending": "첫 수집 결과를 기다리고 있습니다.", "coverage.reason.unknown": "마지막 확인 상태를 알 수 없습니다.", "coverage.reason.partial": "일부 자료를 확인하지 못했습니다. 아래 확인 내용과 공식 원문을 확인해 주세요.",
-    "common.event": "개최", "common.deadline": "마감", "events.upcoming": "개최·마감이 가까운 순", "events.past": "종료된 이벤트", "reference.title": "시설 안내 (가정 통신문이 아닙니다)",
-    "coverage.title": "수집 범위·확인 현황", "coverage.official": "공식 페이지 ↗", "coverage.checked": "공개 범위 확인", "coverage.partial": "일부만 확인", "coverage.reference": "시설 안내", "coverage.unavailable": "가져오지 못함", "coverage.unknown": "확인 상태 불명", "coverage.collected": "수집", "coverage.discovered": "후보", "coverage.limit": "수집 상한 있음", "coverage.checkedAt": "확인 일시", "coverage.attention": "확인 주의", "coverage.sourceUnknown": "출처 미확인",
+    "common.event": "개최", "common.deadline": "마감", "events.upcoming": "개최·마감이 가까운 순", "events.past": "종료된 이벤트", "reference.title": "참고자료 (입회·제도·시설 안내)",
+    "coverage.title": "수집 범위·확인 현황", "coverage.official": "공식 페이지 ↗", "coverage.checked": "공개 범위 확인", "coverage.partial": "일부만 확인", "coverage.reference": "참고자료", "coverage.unavailable": "가져오지 못함", "coverage.unknown": "확인 상태 불명", "coverage.collected": "수집", "coverage.discovered": "후보", "coverage.limit": "수집 상한 있음", "coverage.checkedAt": "확인 일시", "coverage.attention": "확인 주의", "coverage.sourceUnknown": "출처 미확인",
     "page.title": "오타요리 desk — 학교 소식 베타", "brand.subtitle": "도쿄 학교 소식 / 베타", "status.public": "공개 페이지 확인 중", "status.errorPrefix": "확인하지 못했습니다: ", "language.label": "표시 언어", "theme.toggle": "테마 전환", "detail.view": "자세히 보기",
     "hero.eyebrow": "보호자용 베타 · 공개 자료", "hero.title": "학교 소식을,<br><em>한곳에 모아서</em>.", "hero.lede": "학교별 페이지를 따로 찾지 않아도 학교 소식·학년 소식·행사 안내를 한곳에서 확인할 수 있습니다.", "hero.note": "아이의 학교와 학년을 선택하면 필요한 소식만 표시합니다.",
     "metrics.schools": "등록 학교", "metrics.schoolsFoot": "초·중·고 샘플", "metrics.notices": "이번 표시 수", "metrics.noticesFoot": "공개 원문 기준", "metrics.wards": "지원 지역", "metrics.wardsFoot": "도쿄 확장용 레지스트리", "metrics.scanned": "마지막 확인", "metrics.scannedFoot": "5분 캐시 · 수동 갱신 가능",
-    "workspace.eyebrow": "우리 아이 학교 데스크", "workspace.title": "오늘 확인할 소식", "actions.refresh": "지금 갱신", "actions.notifications": "알림 받기", "feeds.notices": "학교·생활", "feeds.events": "이벤트", "groups.school": "학교", "groups.municipality": "무사시노시·교육위원회／시청", "groups.afterSchool": "학동",
+    "workspace.eyebrow": "우리 아이 학교 데스크", "workspace.title": "오늘 확인할 소식", "actions.refresh": "지금 갱신", "actions.notifications": "알림 받기", "feeds.notices": "학교·생활", "feeds.events": "이벤트", "groups.school": "학교", "groups.municipality": "무사시노시·교육위원회／시청", "groups.afterSchool": "학동·아소베에",
     "filters.change": "학교·학년 변경", "filters.school": "학교", "filters.allSchools": "모든 학교", "filters.group": "발신처", "filters.allGroups": "모든 발신처", "filters.level": "학교 종류", "filters.all": "전체", "filters.ward": "지역", "filters.allAreas": "모든 지역", "filters.grade": "학년", "filters.nearby": "가까운 학교 찾기", "filters.map": "지도에서 보기 ↗", "levels.elementary": "초등학교", "levels.middle": "중학교", "levels.high": "고등학교", "grades.one": "1학년", "grades.two": "2학년", "grades.three": "3학년", "grades.four": "4학년", "grades.five": "5학년", "grades.six": "6학년", "grades.all": "전 학년",
     "status.checking": "학교 페이지를 확인하고 있습니다.", "status.loading": "학교 페이지 확인 중…", "empty.title": "표시할 소식이 없습니다", "empty.body": "필터를 바꾸거나 다시 갱신해 주세요.", "detail.eyebrow": "원문 우선", "detail.placeholderTitle": "소식을 선택하면 원문이 여기에 표시됩니다.", "detail.placeholderBody": "요약뿐 아니라 분류된 내용과 일본어 원문·공식 링크를 함께 확인할 수 있습니다.", "detail.original": "일본어 원문", "detail.openOriginal": "공식 원문 열기 ↗", "detail.loading": "본문을 불러오는 중…", "detail.errorEyebrow": "상세 오류", "detail.errorTitle": "원문을 불러오지 못했습니다.", "card.original": "원문 ↗", "common.items": "건", "common.published": "게시", "common.unknownDate": "날짜 미확인", "common.latest": "최신", "archive.past": "지난 소식", "archive.none": "지난 소식이 없습니다", "summary.notices": "학교·생활 소식", "summary.events": "이벤트", "summary.noData": "표시할 정보가 없습니다", "summary.warning": " · 일부 자료 확인 경고 ", "summary.warningSuffix": "건", "summary.all": "전체", "summary.archiveSuffix": ".", "kind.grade": "학년 소식", "kind.school": "학교 소식", "kind.afterSchool": "학동 클럽", "kind.city": "시·교육위원회", "kind.related": "관련 자료", "category.supplies": "준비물", "category.submission": "제출물·마감", "category.events": "행사·일정", "category.parent": "보호자 안내", "category.school": "학교 전체 안내", "category.study": "학습 일정",
   },
   en: {
+    "kind.gakudo_admissions": "Admissions & programs", "kind.gakudo_facility": "After-school club facilities", "kind.asobee_reference": "Asobee usage guide", "kind.asobee_letter": "Asobee newsletter", "kind.gakudo_daily": "Daily after-school notices",
+    "reference.note": "Reference information about admissions, programs and facilities. These are not daily notices and do not trigger new-update notifications.",
+    "afterSchool.notCollected": "Daily after-school notices: Not collected", "afterSchool.registered": "Daily after-school notices: Registered for collection",
+    "afterSchool.notCollectedNote": "Schedules, things to bring and messages for parents are not collected. These are separate from admissions guides and Asobee newsletters.", "afterSchool.registeredNote": "Collection status for registered sources is shown below. Registration does not guarantee every notice is collected.",
     "detail.attachments": "Official attachments", "detail.attachmentsNote": "Attachment contents are not automatically verified. Check the originals for details and changes.",
     "status.refreshing": "Checking for the latest documents…", "status.refreshTimeout": "Checking is taking longer. Please refresh again later.", "status.refreshError": "Could not recheck the latest updates. Please review the displayed information and originals.",
     "extraction.unverified": "Text unverified", "coverage.readable": "Readable", "coverage.documents": "Documents",
     "coverage.stale": "Update overdue", "coverage.extraction": "Text unverified", "coverage.pending": "First check pending", "coverage.refreshing": "Checking updates", "coverage.details": "Details", "coverage.close": "Close", "coverage.refreshTimeout": "Check delayed", "coverage.refreshError": "Recheck failed",
     "coverage.collection": "Retrieval issue", "coverage.reason.collection": "Some public pages or documents could not be retrieved. Please check the official page.",
     "coverage.reason.stale": "Recent changes have not been checked yet. Previously collected information is shown.", "coverage.reason.extraction": "Some document text could not be read. Please check the official originals.", "coverage.reason.unavailable": "The public page could not be retrieved. Please check the official page.", "coverage.reason.limit": "Some older documents are outside the collection limit.", "coverage.reason.refreshing": "Checking for the latest documents.", "coverage.reason.pending": "Waiting for the first collection result.", "coverage.reason.unknown": "The last check status is unknown.", "coverage.reason.partial": "Some documents could not be checked. Review the details below and the official originals.",
-    "common.event": "Event", "common.deadline": "Deadline", "events.upcoming": "Upcoming dates first", "events.past": "Past events", "reference.title": "Facility information (not school messages)",
-    "coverage.title": "Collection scope & status", "coverage.official": "Official page ↗", "coverage.checked": "Public scope checked", "coverage.partial": "Partly checked", "coverage.reference": "Facility information", "coverage.unavailable": "Could not retrieve", "coverage.unknown": "Status unknown", "coverage.collected": "Collected", "coverage.discovered": "Candidates", "coverage.limit": "Collection limit reached", "coverage.checkedAt": "Checked at", "coverage.attention": "Source warnings", "coverage.sourceUnknown": "Unknown source",
-    "page.title": "Otayori desk — school updates beta", "brand.subtitle": "Tokyo school notes / beta", "status.public": "Checking public pages", "status.errorPrefix": "Could not check: ", "language.label": "Language", "theme.toggle": "Change theme", "detail.view": "View details", "hero.eyebrow": "Parent beta · public sources", "hero.title": "School updates,<br><em>all in one place</em>.", "hero.lede": "See school letters, grade updates, and event information together without searching each school page.", "hero.note": "Choose your child's school and grade to show only relevant updates.", "metrics.schools": "Registered schools", "metrics.schoolsFoot": "Elementary · middle · high", "metrics.notices": "Shown now", "metrics.noticesFoot": "Based on public originals", "metrics.wards": "Areas", "metrics.wardsFoot": "Registry ready for expansion", "metrics.scanned": "Last checked", "metrics.scannedFoot": "5-min cache · refresh anytime", "workspace.eyebrow": "My child's school desk", "workspace.title": "Updates to check today", "actions.refresh": "Refresh now", "actions.notifications": "Get notifications", "feeds.notices": "School & daily life", "feeds.events": "Events", "groups.school": "School", "groups.municipality": "Musashino City / Board of Education", "groups.afterSchool": "After-school care", "filters.change": "Change school / grade", "filters.school": "School", "filters.allSchools": "All schools", "filters.group": "Source", "filters.allGroups": "All sources", "filters.level": "School type", "filters.all": "All", "filters.ward": "Area", "filters.allAreas": "All areas", "filters.grade": "Grade", "filters.nearby": "Find nearby schools", "filters.map": "Open map ↗", "levels.elementary": "Elementary", "levels.middle": "Middle", "levels.high": "High school", "grades.one": "Grade 1", "grades.two": "Grade 2", "grades.three": "Grade 3", "grades.four": "Grade 4", "grades.five": "Grade 5", "grades.six": "Grade 6", "grades.all": "All grades", "status.checking": "Checking school pages.", "status.loading": "Checking school pages…", "empty.title": "No updates to show", "empty.body": "Change a filter or refresh again.", "detail.eyebrow": "Original first", "detail.placeholderTitle": "Select an update to see the original here.", "detail.placeholderBody": "Review categorized items together with the Japanese original and official link.", "detail.original": "Japanese original", "detail.openOriginal": "Open official original ↗", "detail.loading": "Loading the original…", "detail.errorEyebrow": "Detail error", "detail.errorTitle": "Could not load the original.", "card.original": "Original ↗", "common.items": " items", "common.published": "Published", "common.unknownDate": "Date unknown", "common.latest": "LATEST", "archive.past": "Past updates", "archive.none": "No past updates", "summary.notices": "School & daily life", "summary.events": "Events", "summary.noData": "No information to show", "summary.warning": " · source warnings: ", "summary.warningSuffix": "", "summary.all": "All ", "summary.archiveSuffix": ".", "kind.grade": "Grade letter", "kind.school": "School letter", "kind.afterSchool": "After-school care", "kind.city": "City / board", "kind.related": "Related", "category.supplies": "What to bring", "category.submission": "Submissions & deadlines", "category.events": "Events & schedule", "category.parent": "For parents", "category.school": "School-wide notice", "category.study": "Study schedule",
+    "common.event": "Event", "common.deadline": "Deadline", "events.upcoming": "Upcoming dates first", "events.past": "Past events", "reference.title": "Reference materials (admissions, programs & facilities)",
+    "coverage.title": "Collection scope & status", "coverage.official": "Official page ↗", "coverage.checked": "Public scope checked", "coverage.partial": "Partly checked", "coverage.reference": "Reference materials", "coverage.unavailable": "Could not retrieve", "coverage.unknown": "Status unknown", "coverage.collected": "Collected", "coverage.discovered": "Candidates", "coverage.limit": "Collection limit reached", "coverage.checkedAt": "Checked at", "coverage.attention": "Source warnings", "coverage.sourceUnknown": "Unknown source",
+    "page.title": "Otayori desk — school updates beta", "brand.subtitle": "Tokyo school notes / beta", "status.public": "Checking public pages", "status.errorPrefix": "Could not check: ", "language.label": "Language", "theme.toggle": "Change theme", "detail.view": "View details", "hero.eyebrow": "Parent beta · public sources", "hero.title": "School updates,<br><em>all in one place</em>.", "hero.lede": "See school letters, grade updates, and event information together without searching each school page.", "hero.note": "Choose your child's school and grade to show only relevant updates.", "metrics.schools": "Registered schools", "metrics.schoolsFoot": "Elementary · middle · high", "metrics.notices": "Shown now", "metrics.noticesFoot": "Based on public originals", "metrics.wards": "Areas", "metrics.wardsFoot": "Registry ready for expansion", "metrics.scanned": "Last checked", "metrics.scannedFoot": "5-min cache · refresh anytime", "workspace.eyebrow": "My child's school desk", "workspace.title": "Updates to check today", "actions.refresh": "Refresh now", "actions.notifications": "Get notifications", "feeds.notices": "School & daily life", "feeds.events": "Events", "groups.school": "School", "groups.municipality": "Musashino City / Board of Education", "groups.afterSchool": "After-school & Asobee", "filters.change": "Change school / grade", "filters.school": "School", "filters.allSchools": "All schools", "filters.group": "Source", "filters.allGroups": "All sources", "filters.level": "School type", "filters.all": "All", "filters.ward": "Area", "filters.allAreas": "All areas", "filters.grade": "Grade", "filters.nearby": "Find nearby schools", "filters.map": "Open map ↗", "levels.elementary": "Elementary", "levels.middle": "Middle", "levels.high": "High school", "grades.one": "Grade 1", "grades.two": "Grade 2", "grades.three": "Grade 3", "grades.four": "Grade 4", "grades.five": "Grade 5", "grades.six": "Grade 6", "grades.all": "All grades", "status.checking": "Checking school pages.", "status.loading": "Checking school pages…", "empty.title": "No updates to show", "empty.body": "Change a filter or refresh again.", "detail.eyebrow": "Original first", "detail.placeholderTitle": "Select an update to see the original here.", "detail.placeholderBody": "Review categorized items together with the Japanese original and official link.", "detail.original": "Japanese original", "detail.openOriginal": "Open official original ↗", "detail.loading": "Loading the original…", "detail.errorEyebrow": "Detail error", "detail.errorTitle": "Could not load the original.", "card.original": "Original ↗", "common.items": " items", "common.published": "Published", "common.unknownDate": "Date unknown", "common.latest": "LATEST", "archive.past": "Past updates", "archive.none": "No past updates", "summary.notices": "School & daily life", "summary.events": "Events", "summary.noData": "No information to show", "summary.warning": " · source warnings: ", "summary.warningSuffix": "", "summary.all": "All ", "summary.archiveSuffix": ".", "kind.grade": "Grade letter", "kind.school": "School letter", "kind.afterSchool": "After-school care", "kind.city": "City / board", "kind.related": "Related", "category.supplies": "What to bring", "category.submission": "Submissions & deadlines", "category.events": "Events & schedule", "category.parent": "For parents", "category.school": "School-wide notice", "category.study": "Study schedule",
   },
   zh: {
+    "kind.gakudo_admissions": "入会·制度介绍", "kind.gakudo_facility": "课后托管设施介绍", "kind.asobee_reference": "Asobee使用指南", "kind.asobee_letter": "Asobee通讯", "kind.gakudo_daily": "课后托管日常通知",
+    "reference.note": "入会、制度及设施等参考资料，不属于日常通知，也不在新消息推送范围内。",
+    "afterSchool.notCollected": "课后托管日常通知：未收集", "afterSchool.registered": "课后托管日常通知：已登记为收集对象",
+    "afterSchool.notCollectedNote": "尚未收集日程、携带物品及给家长的通知。这些与入会指南、Asobee通讯不同。", "afterSchool.registeredNote": "以下为已登记来源的收集状态，不保证获取全部通知。",
     "detail.attachments": "官方附件原文", "detail.attachmentsNote": "附件正文不在自动确认范围内，请查看原文中的内容及变更。",
     "status.refreshing": "正在确认最新资料…", "status.refreshTimeout": "确认耗时较长，请稍后再次刷新。", "status.refreshError": "无法再次确认最新信息，请查看当前信息和原文。",
     "extraction.unverified": "正文未确认", "coverage.readable": "正文", "coverage.documents": "资料",
     "coverage.stale": "更新延迟", "coverage.extraction": "正文未确认", "coverage.pending": "等待首次确认", "coverage.refreshing": "正在检查更新", "coverage.details": "详情", "coverage.close": "收起", "coverage.refreshTimeout": "确认延迟", "coverage.refreshError": "再次确认失败",
     "coverage.collection": "收集问题", "coverage.reason.collection": "无法获取部分公开页面或资料，请查看官方页面。",
     "coverage.reason.stale": "尚未确认最新变更，当前显示此前收集的信息。", "coverage.reason.extraction": "部分资料的正文无法读取，请查看官方原文。", "coverage.reason.unavailable": "无法获取公开页面，请查看官方页面。", "coverage.reason.limit": "由于收集上限，部分历史资料不在收集范围内。", "coverage.reason.refreshing": "正在确认最新资料。", "coverage.reason.pending": "正在等待首次收集结果。", "coverage.reason.unknown": "无法确认上次检查的状态。", "coverage.reason.partial": "部分资料尚未确认，请查看下方详情及官方原文。",
-    "common.event": "举办", "common.deadline": "截止", "events.upcoming": "按举办·截止日期由近到远", "events.past": "已结束的活动", "reference.title": "设施介绍（非家校通知）",
-    "coverage.title": "收集范围·确认状态", "coverage.official": "官方页面 ↗", "coverage.checked": "已检查公开范围", "coverage.partial": "仅确认部分", "coverage.reference": "设施介绍", "coverage.unavailable": "无法获取", "coverage.unknown": "确认状态未知", "coverage.collected": "已获取", "coverage.discovered": "候选", "coverage.limit": "已达收集上限", "coverage.checkedAt": "确认时间", "coverage.attention": "来源提醒", "coverage.sourceUnknown": "来源未确认",
-    "page.title": "おたより desk — 学校通知测试版", "brand.subtitle": "东京学校通知 / 测试版", "status.public": "正在检查公开页面", "status.errorPrefix": "无法确认：", "language.label": "显示语言", "theme.toggle": "切换主题", "detail.view": "查看详情", "hero.eyebrow": "家长测试版 · 公开来源", "hero.title": "学校通知，<br><em>集中在一处</em>。", "hero.lede": "无需逐个寻找学校网页，即可集中查看学校通知、年级通知和活动信息。", "hero.note": "选择孩子的学校和年级，只显示需要的信息。", "metrics.schools": "已登记学校", "metrics.schoolsFoot": "小学·初中·高中", "metrics.notices": "当前显示", "metrics.noticesFoot": "以公开原文为准", "metrics.wards": "覆盖地区", "metrics.wardsFoot": "可扩展东京地区", "metrics.scanned": "最后检查", "metrics.scannedFoot": "5分钟缓存·可手动更新", "workspace.eyebrow": "孩子的学校桌面", "workspace.title": "今天要确认的通知", "actions.refresh": "立即更新", "actions.notifications": "接收通知", "feeds.notices": "学校·日常", "feeds.events": "活动", "groups.school": "学校", "groups.municipality": "武藏野市·教育委员会／市政府", "groups.afterSchool": "课后托管", "filters.change": "更改学校·年级", "filters.school": "学校", "filters.allSchools": "所有学校", "filters.group": "来源", "filters.allGroups": "所有来源", "filters.level": "学校类型", "filters.all": "全部", "filters.ward": "地区", "filters.allAreas": "所有地区", "filters.grade": "年级", "filters.nearby": "查找附近学校", "filters.map": "在地图中查看 ↗", "levels.elementary": "小学", "levels.middle": "初中", "levels.high": "高中", "grades.one": "一年级", "grades.two": "二年级", "grades.three": "三年级", "grades.four": "四年级", "grades.five": "五年级", "grades.six": "六年级", "grades.all": "全年级", "status.checking": "正在检查学校页面。", "status.loading": "正在检查学校页面…", "empty.title": "没有可显示的通知", "empty.body": "请更改筛选条件或再次更新。", "detail.eyebrow": "优先查看原文", "detail.placeholderTitle": "选择通知后将在这里显示原文。", "detail.placeholderBody": "可同时查看分类内容、日文原文和官方链接。", "detail.original": "日文原文", "detail.openOriginal": "打开官方原文 ↗", "detail.loading": "正在加载原文…", "detail.errorEyebrow": "详情错误", "detail.errorTitle": "无法加载原文。", "card.original": "原文 ↗", "common.items": "条", "common.published": "发布", "common.unknownDate": "日期未知", "common.latest": "最新", "archive.past": "过去的通知", "archive.none": "没有过去的通知", "summary.notices": "学校·日常通知", "summary.events": "活动", "summary.noData": "没有可显示的信息", "summary.warning": " · 部分来源有警告 ", "summary.warningSuffix": "条", "summary.all": "共", "summary.archiveSuffix": "。", "kind.grade": "年级通知", "kind.school": "学校通知", "kind.afterSchool": "课后托管", "kind.city": "市政府·教育委员会", "kind.related": "相关资料", "category.supplies": "携带物品·准备", "category.submission": "提交物·截止日期", "category.events": "活动·日程", "category.parent": "给家长的通知", "category.school": "全校通知", "category.study": "学习安排",
+    "common.event": "举办", "common.deadline": "截止", "events.upcoming": "按举办·截止日期由近到远", "events.past": "已结束的活动", "reference.title": "参考资料（入会·制度·设施介绍）",
+    "coverage.title": "收集范围·确认状态", "coverage.official": "官方页面 ↗", "coverage.checked": "已检查公开范围", "coverage.partial": "仅确认部分", "coverage.reference": "参考资料", "coverage.unavailable": "无法获取", "coverage.unknown": "确认状态未知", "coverage.collected": "已获取", "coverage.discovered": "候选", "coverage.limit": "已达收集上限", "coverage.checkedAt": "确认时间", "coverage.attention": "来源提醒", "coverage.sourceUnknown": "来源未确认",
+    "page.title": "おたより desk — 学校通知测试版", "brand.subtitle": "东京学校通知 / 测试版", "status.public": "正在检查公开页面", "status.errorPrefix": "无法确认：", "language.label": "显示语言", "theme.toggle": "切换主题", "detail.view": "查看详情", "hero.eyebrow": "家长测试版 · 公开来源", "hero.title": "学校通知，<br><em>集中在一处</em>。", "hero.lede": "无需逐个寻找学校网页，即可集中查看学校通知、年级通知和活动信息。", "hero.note": "选择孩子的学校和年级，只显示需要的信息。", "metrics.schools": "已登记学校", "metrics.schoolsFoot": "小学·初中·高中", "metrics.notices": "当前显示", "metrics.noticesFoot": "以公开原文为准", "metrics.wards": "覆盖地区", "metrics.wardsFoot": "可扩展东京地区", "metrics.scanned": "最后检查", "metrics.scannedFoot": "5分钟缓存·可手动更新", "workspace.eyebrow": "孩子的学校桌面", "workspace.title": "今天要确认的通知", "actions.refresh": "立即更新", "actions.notifications": "接收通知", "feeds.notices": "学校·日常", "feeds.events": "活动", "groups.school": "学校", "groups.municipality": "武藏野市·教育委员会／市政府", "groups.afterSchool": "课后托管·Asobee", "filters.change": "更改学校·年级", "filters.school": "学校", "filters.allSchools": "所有学校", "filters.group": "来源", "filters.allGroups": "所有来源", "filters.level": "学校类型", "filters.all": "全部", "filters.ward": "地区", "filters.allAreas": "所有地区", "filters.grade": "年级", "filters.nearby": "查找附近学校", "filters.map": "在地图中查看 ↗", "levels.elementary": "小学", "levels.middle": "初中", "levels.high": "高中", "grades.one": "一年级", "grades.two": "二年级", "grades.three": "三年级", "grades.four": "四年级", "grades.five": "五年级", "grades.six": "六年级", "grades.all": "全年级", "status.checking": "正在检查学校页面。", "status.loading": "正在检查学校页面…", "empty.title": "没有可显示的通知", "empty.body": "请更改筛选条件或再次更新。", "detail.eyebrow": "优先查看原文", "detail.placeholderTitle": "选择通知后将在这里显示原文。", "detail.placeholderBody": "可同时查看分类内容、日文原文和官方链接。", "detail.original": "日文原文", "detail.openOriginal": "打开官方原文 ↗", "detail.loading": "正在加载原文…", "detail.errorEyebrow": "详情错误", "detail.errorTitle": "无法加载原文。", "card.original": "原文 ↗", "common.items": "条", "common.published": "发布", "common.unknownDate": "日期未知", "common.latest": "最新", "archive.past": "过去的通知", "archive.none": "没有过去的通知", "summary.notices": "学校·日常通知", "summary.events": "活动", "summary.noData": "没有可显示的信息", "summary.warning": " · 部分来源有警告 ", "summary.warningSuffix": "条", "summary.all": "共", "summary.archiveSuffix": "。", "kind.grade": "年级通知", "kind.school": "学校通知", "kind.afterSchool": "课后托管", "kind.city": "市政府·教育委员会", "kind.related": "相关资料", "category.supplies": "携带物品·准备", "category.submission": "提交物·截止日期", "category.events": "活动·日程", "category.parent": "给家长的通知", "category.school": "全校通知", "category.study": "学习安排",
   },
 };
 
 const LABEL_KEYS = {
+  "入会・制度案内": "kind.gakudo_admissions", "学童の施設案内": "kind.gakudo_facility", "あそべえの利用案内": "kind.asobee_reference", "あそべえだより": "kind.asobee_letter", "学童の生活連絡": "kind.gakudo_daily", "学童・あそべえ": "groups.afterSchool",
   "学年だより": "kind.grade", "学校だより": "kind.school", "学童クラブ": "kind.afterSchool", "市・教育委員会": "kind.city", "関連資料": "kind.related",
   "持ち物・準備": "category.supplies", "提出物・締切": "category.submission", "行事・予定": "category.events", "保護者への連絡": "category.parent", "学校全体への連絡": "category.school", "学習予定": "category.study",
   "学校": "groups.school", "武蔵野市・教育委員会／市役所": "groups.municipality", "学童": "groups.afterSchool",
@@ -167,10 +184,22 @@ function sourceConfig(item) {
   return state.config?.sources?.find((source) => source.id === item.source_id) || {};
 }
 
+const AFTER_SCHOOL_KINDS = ["gakudo_admissions", "gakudo_facility", "asobee_reference", "asobee_letter", "gakudo_daily"];
+
+function contentKind(item) {
+  return item.kind || item.content_kind || state.payload?.coverage?.find((source) => source.source_id === item.source_id)?.content_kind || sourceConfig(item).content_kind;
+}
+
+function kindLabel(item) {
+  const kind = contentKind(item);
+  return AFTER_SCHOOL_KINDS.includes(kind) ? t(`kind.${kind}`) : localizeLabel(item.kind_label);
+}
+
 function isReference(notice) {
   const source = sourceConfig(notice);
   const coverage = state.payload?.coverage?.find((item) => item.source_id === notice.source_id);
   return notice.coverage_kind === "reference" || source.coverage_kind === "reference" || coverage?.coverage_kind === "reference"
+    || ["gakudo_admissions", "gakudo_facility", "asobee_reference"].includes(contentKind(notice))
     || notice.mode === "static" || source.mode === "static";
 }
 
@@ -315,6 +344,7 @@ function setLoading(value) {
     $("notice-list").replaceChildren();
     $("coverage-details").hidden = true;
     $("coverage-alert").hidden = true;
+    $("after-school-scope").hidden = true;
   }
 }
 
@@ -407,6 +437,26 @@ function legacyCoverageIssue(message) {
   return "collection";
 }
 
+function renderAfterSchoolScope(payload) {
+  const panel = $("after-school-scope");
+  const scope = payload.after_school_scope;
+  const groups = [selectedValue("group-filter"), payload.filters?.group];
+  panel.hidden = !scope || !["not_collected", "registered"].includes(scope.daily_notice_status)
+    || state.feed === "events" || payload.filters?.feed === "events" || groups.some((group) => ["school", "municipality"].includes(group));
+  if (panel.hidden) return;
+  const registered = scope.daily_notice_status === "registered";
+  $("after-school-scope-summary").textContent = t(registered ? "afterSchool.registered" : "afterSchool.notCollected");
+  $("after-school-scope-note").textContent = t(registered ? "afterSchool.registeredNote" : "afterSchool.notCollectedNote");
+  const list = $("after-school-scope-sources");
+  list.hidden = !registered;
+  list.innerHTML = registered ? (scope.source_ids || []).map((sourceId) => {
+    const source = { ...sourceConfig({ source_id: sourceId }), source_id: sourceId, ...(payload.coverage || []).find((row) => row.source_id === sourceId) };
+    const issues = coverageIssues(source);
+    const statuses = issues.length ? issues : [coverageStatus(source)];
+    return `<li class="coverage-source"><div class="coverage-source-heading"><strong>${escapeHtml(source.source_name || source.name || sourceId)}</strong>${statuses.map((status) => `<span class="coverage-status ${coverageIssueClass(status)}">${escapeHtml(t(`coverage.${status}`))}</span>`).join("")}${officialLink(source.page_url, t("coverage.official"))}</div></li>`;
+  }).join("") || `<li>${escapeHtml(t("coverage.unknown"))}</li>` : "";
+}
+
 function renderCoverage(payload) {
   const sourceName = (source) => source.source_name || source.name || source.source_id || t("coverage.sourceUnknown");
   const rows = (payload.coverage || []).map((item) => ({ ...sourceConfig(item), ...item }));
@@ -460,11 +510,11 @@ function renderCoverage(payload) {
     const collected = countsDiffer ? `${t("coverage.readable")} ${source.readable_count} / ${t("coverage.documents")} ${source.notice_count}` : `${t("coverage.collected")} ${count(source.notice_count)}`;
     const checked = new Date(source.checked_at || "");
     const checkedAt = Number.isNaN(checked.getTime()) ? "—" : checked.toLocaleString({ ja: "ja-JP", ko: "ko-KR", en: "en-US", zh: "zh-CN" }[state.language] || "ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) + " JST";
-    return `<li class="coverage-source"><div class="coverage-source-heading"><strong>${escapeHtml(sourceName(source))}</strong><span class="coverage-status ${coverageIssueClass(status)}">${escapeHtml(t(`coverage.${status}`))}</span>${officialLink(source.page_url, t("coverage.official"))}</div>
+    return `<li class="coverage-source"><div class="coverage-source-heading"><strong>${escapeHtml(sourceName(source))}</strong>${AFTER_SCHOOL_KINDS.includes(contentKind(source)) ? `<span class="pill soft">${escapeHtml(kindLabel(source))}</span>` : ""}<span class="coverage-status ${coverageIssueClass(status)}">${escapeHtml(t(`coverage.${status}`))}</span>${officialLink(source.page_url, t("coverage.official"))}</div>
       <p>${escapeHtml(collected)} · ${escapeHtml(t("coverage.discovered"))} ${escapeHtml(count(source.discovered_count))}${issues.includes("limit") ? ` · ${escapeHtml(t("coverage.limit"))}` : ""}</p>
       ${issues.map((issue) => `<p><span class="coverage-status ${coverageIssueClass(issue)}">${escapeHtml(t(`coverage.reason.${issue}`))}</span></p>`).join("")}
       ${source.coverage_note ? `<p lang="ja">${escapeHtml(source.coverage_note)}</p>` : ""}
-      ${isReference(source) || source.status === "reference" ? '<p lang="ja">施設の基本情報です。日々の連絡・新着通知の確認対象ではありません。</p>' : ""}
+      ${isReference(source) || source.status === "reference" ? `<p>${escapeHtml(t("reference.note"))}</p>` : ""}
       <small>${escapeHtml(t("coverage.checkedAt"))} ${escapeHtml(checkedAt)}</small></li>`;
   }).join("") || `<li>${escapeHtml(t("coverage.unknown"))}</li>`;
   $("coverage-warnings").className = "coverage-note coverage-status";
@@ -478,14 +528,14 @@ function renderNoticeCard(notice) {
   const categories = (originalOnly ? [] : notice.category_names || []).slice(0, 3).map((category) => `<span>${escapeHtml(localizeLabel(category))}</span>`).join("");
   const levelClass = notice.level === "高等学校" ? "coral" : notice.level === "中学校" ? "mint" : "";
   const sourceGroup = ["school", "municipality", "after_school"].includes(notice.source_group) ? notice.source_group : "school";
-  const sourceGroupLabel = localizeLabel(notice.source_group_label || "学校");
+  const sourceGroupLabel = sourceGroup === "after_school" ? t("groups.afterSchool") : localizeLabel(notice.source_group_label || "学校");
   return `<article class="notice-card group-${escapeHtml(sourceGroup)}" data-notice-id="${escapeHtml(notice.id)}">
     <button type="button" aria-expanded="false" aria-label="${escapeHtml(notice.source_name)} ${escapeHtml(notice.title)}${originalOnly ? ` ${escapeHtml(t("extraction.unverified"))}` : ""} ${escapeHtml(t("detail.view"))}">
       <div class="notice-meta">
         <span class="pill source-pill">${escapeHtml(notice.source_name)}</span>
         <span class="pill group-pill">${escapeHtml(sourceGroupLabel)}</span>
         ${(notice.source_group || "school") === "school" ? `<span class="pill ${levelClass}">${escapeHtml(localizeLabel(notice.level))}</span>` : ""}
-        <span class="pill soft">${escapeHtml(localizeLabel(notice.kind_label))}</span>
+        <span class="pill soft">${escapeHtml(kindLabel(notice))}</span>
         ${originalOnly ? `<span class="pill extraction-badge">${escapeHtml(t("extraction.unverified"))}</span>` : ""}
       </div>
       <h3 class="notice-title" lang="ja">${escapeHtml(notice.title)}</h3>
@@ -557,7 +607,7 @@ function renderNotices(payload) {
   const activeHtml = sections.active.map((group) => `<section class="latest-section"><div class="feed-section-head"><div>${state.feed === "events" ? "" : `<p class="eyebrow">${escapeHtml(t("common.latest"))}</p>`}<h3>${escapeHtml(group.label)}</h3></div><span>${escapeHtml(formatCount(group.items.length))}</span></div>${renderNoticeGroup(group)}</section>`).join("");
   const undatedHtml = sections.undated.length ? `<section class="undated-section"><div class="feed-section-head compact-section-head"><h3>${escapeHtml(t("common.unknownDate"))}</h3><span>${escapeHtml(formatCount(sections.undated.length))}</span></div>${renderNoticeGroup({ items: sections.undated })}</section>` : "";
   const archiveHtml = sections.archive.map((group) => `<details class="archive-group"><summary><span><strong>${escapeHtml(group.label)}</strong>${state.feed === "events" ? "" : `<small>${escapeHtml(t("archive.past"))}</small>`}</span><b>${escapeHtml(formatCount(group.items.length))}</b></summary>${renderNoticeGroup(group)}</details>`).join("");
-  const referenceHtml = sections.references.length ? `<details class="archive-group reference-group"><summary><span><strong>${escapeHtml(t("reference.title"))}</strong></span><b>${escapeHtml(formatCount(sections.references.length))}</b></summary><p class="reference-note" lang="ja">施設の基本情報です。日々の連絡・新着通知の確認対象ではありません。</p>${renderNoticeGroup({ items: sections.references })}</details>` : "";
+  const referenceHtml = sections.references.length ? `<details class="archive-group reference-group"><summary><span><strong>${escapeHtml(t("reference.title"))}</strong></span><b>${escapeHtml(formatCount(sections.references.length))}</b></summary><p class="reference-note">${escapeHtml(t("reference.note"))}</p>${renderNoticeGroup({ items: sections.references })}</details>` : "";
   list.innerHTML = activeHtml + undatedHtml + archiveHtml + referenceHtml;
   $("empty-state").hidden = state.notices.length !== 0;
   $("metric-notices").textContent = sections.total;
@@ -567,6 +617,7 @@ function renderNotices(payload) {
     ? `${t("summary.events")}：${formatCount(latest?.items.length || 0)} · ${t("events.past")} ${formatCount(sections.archive[0]?.items.length || 0)}`
     : formatFilterSummary(summaryGroup, sections.total, 0, sections.archive.length);
   $("filter-summary").textContent = summary + (sections.undated.length && (latest || state.feed === "events") ? ` · ${t("common.unknownDate")} ${formatCount(sections.undated.length)}` : "");
+  renderAfterSchoolScope(payload);
   renderCoverage(payload);
   list.querySelectorAll(".notice-card").forEach((card) => {
     card.querySelector("button")?.addEventListener("click", () => selectNotice(card.dataset.noticeId));
@@ -593,10 +644,10 @@ function detailMarkup(notice) {
     return `<section class="detail-section"><h4>${escapeHtml(localizeLabel(name))}</h4><ul>${list}</ul></section>`;
   }).join("");
   return `<div class="detail-content">
-    <div class="notice-meta"><span class="pill">${escapeHtml(notice.source_name)}</span><span class="pill group-pill">${escapeHtml(localizeLabel(notice.source_group_label || "学校"))}</span><span class="pill soft">${escapeHtml(localizeLabel(notice.kind_label))}</span>${originalOnly ? `<span class="pill extraction-badge">${escapeHtml(t("extraction.unverified"))}</span>` : ""}</div>
+    <div class="notice-meta"><span class="pill">${escapeHtml(notice.source_name)}</span><span class="pill group-pill">${escapeHtml(notice.source_group === "after_school" ? t("groups.afterSchool") : localizeLabel(notice.source_group_label || "学校"))}</span><span class="pill soft">${escapeHtml(kindLabel(notice))}</span>${originalOnly ? `<span class="pill extraction-badge">${escapeHtml(t("extraction.unverified"))}</span>` : ""}</div>
     <h3 lang="ja">${escapeHtml(notice.title)}</h3>
     <p class="source-line notice-dates">${escapeHtml([notice.ward, ...((notice.source_group || "school") === "school" ? [localizeLabel(notice.level), localizeLabel(notice.grade)] : []), noticeDateText(notice)].filter(Boolean).join(" · "))}</p>
-    ${isReference(notice) ? `<p class="reference-note">${escapeHtml(t("reference.title"))}</p>` : ""}
+    ${isReference(notice) ? `<p class="reference-note">${escapeHtml(t("reference.note"))}</p>` : ""}
     ${officialLink(notice.url, t("detail.openOriginal"), "detail-link")}
     ${attachmentHtml ? `<details class="detail-section attachment-links"><summary>${escapeHtml(t("detail.attachments"))}</summary><p class="extraction-note">${escapeHtml(t("detail.attachmentsNote"))}</p><ul>${attachmentHtml}</ul></details>` : ""}
     <p class="extraction-note" lang="ja">${originalOnly ? "本文は確認できていません。公式の原文を開いてご確認ください。自動抽出（OCRを含む）には読み違い・抜けが生じる場合があります。" : "表示本文は機械による抽出結果です（画像資料ではOCRを使う場合があります）。読み違い・抜けが生じる場合があるため、日付や持ち物は公式の原文でご確認ください。"}</p>
@@ -1033,6 +1084,7 @@ async function deleteDeviceData() {
     $("notice-list").replaceChildren();
     $("coverage-details").hidden = true;
     $("coverage-alert").hidden = true;
+    $("after-school-scope").hidden = true;
     $("filter-summary").textContent = t("summary.noData");
     $("feedback-issue").value = ""; $("feedback-template").value = "";
     $("feedback-fallback").hidden = true;

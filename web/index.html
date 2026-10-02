@@ -85,7 +85,7 @@
           <div class="source-legend" aria-label="情報の発信元">
             <span><i class="legend-swatch school"></i><span data-i18n="groups.school">学校</span></span>
             <span><i class="legend-swatch municipality"></i><span data-i18n="groups.municipality">武蔵野市・教育委員会／市役所</span></span>
-            <span><i class="legend-swatch after-school"></i><span data-i18n="groups.afterSchool">学童</span></span>
+            <span><i class="legend-swatch after-school"></i><span data-i18n="groups.afterSchool">学童・あそべえ</span></span>
           </div>
 
           <details class="filter-drawer" id="filter-drawer">
@@ -95,7 +95,7 @@
                 <select id="source-filter"><option value="all" data-i18n="filters.allSchools">すべての学校</option></select>
               </label>
               <label class="filter-field"><span data-i18n="filters.group">発信元</span>
-                <select id="group-filter"><option value="all" data-i18n="filters.allGroups">すべての発信元</option><option value="school" data-i18n="groups.school">学校</option><option value="municipality" data-i18n="groups.municipality">武蔵野市・教育委員会／市役所</option><option value="after_school" data-i18n="groups.afterSchool">学童</option></select>
+                <select id="group-filter"><option value="all" data-i18n="filters.allGroups">すべての発信元</option><option value="school" data-i18n="groups.school">学校</option><option value="municipality" data-i18n="groups.municipality">武蔵野市・教育委員会／市役所</option><option value="after_school" data-i18n="groups.afterSchool">学童・あそべえ</option></select>
               </label>
               <label class="filter-field"><span data-i18n="filters.level">学校種別</span>
                 <select id="level-filter"><option value="all" data-i18n="filters.all">すべて</option><option value="小学校" data-i18n="levels.elementary">小学校</option><option value="中学校" data-i18n="levels.middle">中学校</option><option value="高等学校" data-i18n="levels.high">高等学校</option></select>
@@ -115,6 +115,11 @@
           </details>
 
           <div class="filter-summary" id="filter-summary" aria-live="polite" data-i18n="status.checking">学校のページを確認しています。</div>
+          <details class="coverage-details" id="after-school-scope" hidden>
+            <summary id="after-school-scope-summary"></summary>
+            <p class="coverage-note" id="after-school-scope-note"></p>
+            <ul class="coverage-list" id="after-school-scope-sources" hidden></ul>
+          </details>
           <p class="coverage-alert" id="coverage-alert" role="status" hidden></p>
           <details class="coverage-details" id="coverage-details" hidden>
             <summary><span data-i18n="coverage.title">収集範囲・確認状況</span><small id="coverage-count"></small></summary>
@@ -183,6 +188,6 @@
       </footer>
     </div>
     <script src="/policies.js?v=20261001-12" defer></script>
-  <script src="/app.js?v=20261002-1" defer></script>
+  <script src="/app.js?v=20261002-2" defer></script>
   </body>
 </html>

@@ -71,7 +71,7 @@
       "coverage_note": "公開の施設案内。非公開のクラブ連絡は対象外です。移転情報は市の学童一覧もご確認ください。",
       "source_group": "after_school",
       "feed_group": "notices",
-      "content_kind": "after_school",
+      "content_kind": "gakudo_facility",
       "latitude": 35.7118,
       "longitude": 139.5321
     },
@@ -89,12 +89,13 @@
       "include_patterns": ["一小こどもクラブ"],
       "collection_id": "musashino_dai1_gakudo",
       "collection_root": true,
+      "related_collections": ["musashino_dai1_es"],
       "note": "市公式の施設案内本文を毎回取得。所在地・利用時間・対象などの参考情報であり、クラブ内の連絡帳や毎月のおたよりではありません",
       "coverage_kind": "reference",
       "coverage_note": "公開の施設案内。非公開のクラブ連絡は対象外です。移転情報は市の学童一覧もご確認ください。",
       "source_group": "after_school",
       "feed_group": "notices",
-      "content_kind": "after_school",
+      "content_kind": "gakudo_facility",
       "latitude": 35.7085,
       "longitude": 139.5735
     },
@@ -112,12 +113,13 @@
       "include_patterns": ["大野田こどもクラブ"],
       "collection_id": "musashino_oonoden_gakudo",
       "collection_root": true,
+      "related_collections": ["musashino_oonoden_es"],
       "note": "市公式の施設案内本文を毎回取得。所在地・利用時間・対象などの参考情報であり、クラブ内の連絡帳や毎月のおたよりではありません",
       "coverage_kind": "reference",
       "coverage_note": "公開の施設案内。非公開のクラブ連絡は対象外です。移転情報は市の学童一覧もご確認ください。",
       "source_group": "after_school",
       "feed_group": "notices",
-      "content_kind": "after_school",
+      "content_kind": "gakudo_facility",
       "latitude": 35.7159,
       "longitude": 139.5670
     },
@@ -135,12 +137,13 @@
       "include_patterns": ["境南こどもクラブ"],
       "collection_id": "musashino_kyounan_gakudo",
       "collection_root": true,
+      "related_collections": ["musashino_kyounan_es"],
       "note": "市公式の施設案内本文を毎回取得。所在地・利用時間・対象などの参考情報であり、クラブ内の連絡帳や毎月のおたよりではありません",
       "coverage_kind": "reference",
       "coverage_note": "公開の施設案内。非公開のクラブ連絡は対象外です。移転情報は市の学童一覧もご確認ください。",
       "source_group": "after_school",
       "feed_group": "notices",
-      "content_kind": "after_school",
+      "content_kind": "gakudo_facility",
       "latitude": 35.6971,
       "longitude": 139.5445
     },
@@ -158,12 +161,13 @@
       "include_patterns": ["関前南こどもクラブ"],
       "collection_id": "musashino_sekimaeminami_gakudo",
       "collection_root": true,
+      "related_collections": ["musashino_sekimaeminami_es"],
       "note": "市公式の施設案内本文を毎回取得。所在地・利用時間・対象などの参考情報であり、クラブ内の連絡帳や毎月のおたよりではありません",
       "coverage_kind": "reference",
       "coverage_note": "公開の施設案内。非公開のクラブ連絡は対象外です。移転情報は市の学童一覧もご確認ください。",
       "source_group": "after_school",
       "feed_group": "notices",
-      "content_kind": "after_school",
+      "content_kind": "gakudo_facility",
       "latitude": 35.7135,
       "longitude": 139.5498
     },
@@ -265,7 +269,7 @@
     {
       "id": "musashino_gakudo_notices",
       "collection_driver": "scheduled",
-      "name": "武蔵野市・学童クラブの入会とお知らせ",
+      "name": "武蔵野市・学童クラブの入会・制度案内",
       "ward": "武蔵野市",
       "level": "小学校",
       "page_url": "https://www.city.musashino.lg.jp/shussan_kodomo_kyoiku/kodomo_kosodate/shisetsu/gakudoclub/index.html",
@@ -280,8 +284,9 @@
       "shared_with_ward": true,
       "source_group": "after_school",
       "feed_group": "notices",
-      "content_kind": "after_school",
-      "coverage_note": "市が公開する入会申請・制度案内。各クラブの非公開の連絡帳・おたよりは取得しません。",
+      "content_kind": "gakudo_admissions",
+      "coverage_kind": "reference",
+      "coverage_note": "入会申請・利用制度などの参考資料です。各クラブの日々の予定・持ち物・保護者向け連絡は収集していません。",
       "note": "地域子ども館学童クラブ一覧から新しい記事を発見。令和9年度入会申請は2026年10月1日掲載、一斉受付は10月13日～11月13日。年度・掲載日をそのまま保持"
     },
     {
@@ -947,12 +952,13 @@
       "include_patterns": ["二小こどもクラブ"],
       "collection_id": "musashino_dai2_gakudo",
       "collection_root": true,
+      "related_collections": ["musashino_dai2_es"],
       "note": "市公式の施設案内本文を毎回取得。所在地・利用時間・対象などの参考情報であり、クラブ内の連絡帳や毎月のおたよりではありません",
       "coverage_kind": "reference",
       "coverage_note": "公開の施設案内。非公開のクラブ連絡は対象外です。移転情報は市の学童一覧もご確認ください。",
       "source_group": "after_school",
       "feed_group": "notices",
-      "content_kind": "after_school",
+      "content_kind": "gakudo_facility",
       "latitude": 35.7080538,
       "longitude": 139.5426383
     },
@@ -970,12 +976,13 @@
       "include_patterns": ["三小こどもクラブ"],
       "collection_id": "musashino_dai3_gakudo",
       "collection_root": true,
+      "related_collections": ["musashino_dai3_es"],
       "note": "市公式の施設案内本文を毎回取得。所在地・利用時間・対象などの参考情報であり、クラブ内の連絡帳や毎月のおたよりではありません",
       "coverage_kind": "reference",
       "coverage_note": "公開の施設案内。非公開のクラブ連絡は対象外です。移転情報は市の学童一覧もご確認ください。",
       "source_group": "after_school",
       "feed_group": "notices",
-      "content_kind": "after_school",
+      "content_kind": "gakudo_facility",
       "latitude": 35.7023505,
       "longitude": 139.5869382
     },
@@ -993,12 +1000,13 @@
       "include_patterns": ["四小こどもクラブ"],
       "collection_id": "musashino_dai4_gakudo",
       "collection_root": true,
+      "related_collections": ["musashino_dai4_es"],
       "note": "市公式の施設案内本文を毎回取得。所在地・利用時間・対象などの参考情報であり、クラブ内の連絡帳や毎月のおたよりではありません",
       "coverage_kind": "reference",
       "coverage_note": "公開の施設案内。非公開のクラブ連絡は対象外です。移転情報は市の学童一覧もご確認ください。",
       "source_group": "after_school",
       "feed_group": "notices",
-      "content_kind": "after_school",
+      "content_kind": "gakudo_facility",
       "latitude": 35.7119525,
       "longitude": 139.5804198
     },
@@ -1016,12 +1024,13 @@
       "include_patterns": ["五小こどもクラブ"],
       "collection_id": "musashino_dai5_gakudo",
       "collection_root": true,
+      "related_collections": ["musashino_dai5_es"],
       "note": "市公式の施設案内本文を毎回取得。所在地・利用時間・対象などの参考情報であり、クラブ内の連絡帳や毎月のおたよりではありません",
       "coverage_kind": "reference",
       "coverage_note": "公開の施設案内。非公開のクラブ連絡は対象外です。移転情報は市の学童一覧もご確認ください。",
       "source_group": "after_school",
       "feed_group": "notices",
-      "content_kind": "after_school",
+      "content_kind": "gakudo_facility",
       "latitude": 35.7128035,
       "longitude": 139.5564995
     },
@@ -1039,12 +1048,13 @@
       "include_patterns": ["本宿こどもクラブ"],
       "collection_id": "musashino_honjuku_gakudo",
       "collection_root": true,
+      "related_collections": ["musashino_honjuku_es"],
       "note": "市公式の施設案内本文を毎回取得。所在地・利用時間・対象などの参考情報であり、クラブ内の連絡帳や毎月のおたよりではありません",
       "coverage_kind": "reference",
       "coverage_note": "公開の施設案内。非公開のクラブ連絡は対象外です。移転情報は市の学童一覧もご確認ください。",
       "source_group": "after_school",
       "feed_group": "notices",
-      "content_kind": "after_school",
+      "content_kind": "gakudo_facility",
       "latitude": 35.7045462,
       "longitude": 139.5908302
     },
@@ -1062,12 +1072,13 @@
       "include_patterns": ["千川こどもクラブ"],
       "collection_id": "musashino_senkawa_gakudo",
       "collection_root": true,
+      "related_collections": ["musashino_senkawa_es"],
       "note": "市公式の施設案内本文を毎回取得。所在地・利用時間・対象などの参考情報であり、クラブ内の連絡帳や毎月のおたよりではありません",
       "coverage_kind": "reference",
       "coverage_note": "公開の施設案内。非公開のクラブ連絡は対象外です。移転情報は市の学童一覧もご確認ください。",
       "source_group": "after_school",
       "feed_group": "notices",
-      "content_kind": "after_school",
+      "content_kind": "gakudo_facility",
       "latitude": 35.7186018,
       "longitude": 139.5532324
     },
@@ -1085,12 +1096,13 @@
       "include_patterns": ["井之頭こどもクラブ"],
       "collection_id": "musashino_inokashira_gakudo",
       "collection_root": true,
+      "related_collections": ["musashino_inokashira_es"],
       "note": "市公式の施設案内本文を毎回取得。所在地・利用時間・対象などの参考情報であり、クラブ内の連絡帳や毎月のおたよりではありません",
       "coverage_kind": "reference",
       "coverage_note": "公開の施設案内。非公開のクラブ連絡は対象外です。移転情報は市の学童一覧もご確認ください。",
       "source_group": "after_school",
       "feed_group": "notices",
-      "content_kind": "after_school",
+      "content_kind": "gakudo_facility",
       "latitude": 35.7038251,
       "longitude": 139.5685453
     },
@@ -1261,7 +1273,7 @@
       "collection_root": false,
       "shared_with_ward": true,
       "source_group": "after_school",
-      "content_kind": "after_school",
+      "content_kind": "asobee_reference",
       "id": "musashino_asobee_reference",
       "page_urls": [
         "https://www.city.musashino.lg.jp/shussan_kodomo_kyoiku/kodomo_kosodate/shisetsu/index.html"
@@ -1384,7 +1396,7 @@
       "collection_root": false,
       "shared_with_ward": false,
       "source_group": "after_school",
-      "content_kind": "after_school",
+      "content_kind": "asobee_letter",
       "id": "musashino_dai1_es_asobee_public_letters",
       "page_urls": [
         "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
@@ -1416,7 +1428,7 @@
       "collection_root": false,
       "shared_with_ward": false,
       "source_group": "after_school",
-      "content_kind": "after_school",
+      "content_kind": "asobee_letter",
       "id": "musashino_dai2_es_asobee_public_letters",
       "page_urls": [
         "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
@@ -1448,7 +1460,7 @@
       "collection_root": false,
       "shared_with_ward": false,
       "source_group": "after_school",
-      "content_kind": "after_school",
+      "content_kind": "asobee_letter",
       "id": "musashino_dai3_es_asobee_public_letters",
       "page_urls": [
         "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
@@ -1480,7 +1492,7 @@
       "collection_root": false,
       "shared_with_ward": false,
       "source_group": "after_school",
-      "content_kind": "after_school",
+      "content_kind": "asobee_letter",
       "id": "musashino_dai4_es_asobee_public_letters",
       "page_urls": [
         "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
@@ -1512,7 +1524,7 @@
       "collection_root": false,
       "shared_with_ward": false,
       "source_group": "after_school",
-      "content_kind": "after_school",
+      "content_kind": "asobee_letter",
       "id": "musashino_dai5_es_asobee_public_letters",
       "page_urls": [
         "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
@@ -1544,7 +1556,7 @@
       "collection_root": false,
       "shared_with_ward": false,
       "source_group": "after_school",
-      "content_kind": "after_school",
+      "content_kind": "asobee_letter",
       "id": "musashino_oonoden_es_asobee_public_letters",
       "page_urls": [
         "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
@@ -1576,7 +1588,7 @@
       "collection_root": false,
       "shared_with_ward": false,
       "source_group": "after_school",
-      "content_kind": "after_school",
+      "content_kind": "asobee_letter",
       "id": "musashino_kyounan_es_asobee_public_letters",
       "page_urls": [
         "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
@@ -1608,7 +1620,7 @@
       "collection_root": false,
       "shared_with_ward": false,
       "source_group": "after_school",
-      "content_kind": "after_school",
+      "content_kind": "asobee_letter",
       "id": "musashino_honjuku_es_asobee_public_letters",
       "page_urls": [
         "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
@@ -1640,7 +1652,7 @@
       "collection_root": false,
       "shared_with_ward": false,
       "source_group": "after_school",
-      "content_kind": "after_school",
+      "content_kind": "asobee_letter",
       "id": "musashino_senkawa_es_asobee_public_letters",
       "page_urls": [
         "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
@@ -1672,7 +1684,7 @@
       "collection_root": false,
       "shared_with_ward": false,
       "source_group": "after_school",
-      "content_kind": "after_school",
+      "content_kind": "asobee_letter",
       "id": "musashino_inokashira_es_asobee_public_letters",
       "page_urls": [
         "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
@@ -1704,7 +1716,7 @@
       "collection_root": false,
       "shared_with_ward": false,
       "source_group": "after_school",
-      "content_kind": "after_school",
+      "content_kind": "asobee_letter",
       "id": "musashino_sekimaeminami_es_asobee_public_letters",
       "page_urls": [
         "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"
@@ -1736,7 +1748,7 @@
       "collection_root": false,
       "shared_with_ward": false,
       "source_group": "after_school",
-      "content_kind": "after_school",
+      "content_kind": "asobee_letter",
       "id": "sakurano_asobee_public_letters",
       "page_urls": [
         "https://mu-kodomo.kids.coocan.jp/kodomokan/oshirase.html"

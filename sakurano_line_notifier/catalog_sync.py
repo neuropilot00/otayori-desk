@@ -87,6 +87,7 @@ def accept_snapshot(service: CatalogService, payload: dict) -> bool:
             raise CatalogError("invalid snapshot fields") from exc
         notice = replace(notice, source_name=source.name, ward=source.ward, level=source.level,
                          source_group=source.source_group, feed_group=source.feed_group,
+                         kind=source.content_kind if source.source_group == "after_school" else notice.kind,
                          coverage_kind=source.coverage_kind)
         ids.add(notice.id)
         urls.add(notice.url)

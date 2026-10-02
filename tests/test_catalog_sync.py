@@ -39,6 +39,17 @@ class SnapshotTests(unittest.TestCase):
         self.assertFalse(accept_snapshot(self.catalog, payload))
         self.assertEqual(self.catalog._cache_store.load(self.source, "全学年").notices[0].text, self.notice.text)
 
+    def test_after_school_snapshot_type_is_derived_from_reviewed_registry(self):
+        source = replace(self.source, source_group="after_school", content_kind="gakudo_admissions", coverage_kind="reference")
+        self.catalog.sources = [source]
+        payload = snapshot_payload(replace(self.result, source=source))
+        payload["notices"][0]["kind"] = "gakudo_daily"
+        payload["notices"][0]["coverage_kind"] = "notices"
+        self.assertTrue(accept_snapshot(self.catalog, payload))
+        notice = self.catalog._cache_store.load(source, "全学年").notices[0]
+        self.assertEqual(notice.kind, "gakudo_admissions")
+        self.assertEqual(notice.coverage_kind, "reference")
+
     def test_older_snapshot_cannot_replace_current_content(self):
         accept_snapshot(self.catalog, snapshot_payload(self.result))
         older = replace(self.result, scanned_at=(datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat())

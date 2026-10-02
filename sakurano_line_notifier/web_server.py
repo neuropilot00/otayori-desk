@@ -304,6 +304,21 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
         notices.sort(key=lambda notice: (notice["date_label"] != "更新資料", notice["date_label"], notice["source_name"]), reverse=True)
         warnings = [f"{result.source.name}: {warning}" for result in results for warning in result.warnings]
         checked_results = [result for result in results if result.source.coverage_kind != "reference"] or results
+        after_school = [result.source for result in results if result.source.source_group == "after_school"]
+        daily_sources = [source.id for source in after_school if source.content_kind == "gakudo_daily" and source.coverage_kind != "reference"]
+        after_school_scope = None
+        if after_school:
+            after_school_scope = {
+                # Registry coverage is not delivery success or proof that no
+                # guardian notices exist. Never infer it from facility data.
+                "daily_notice_status": "registered" if daily_sources else "not_collected",
+                "scope_note": (
+                    "学童の生活連絡は収集対象に登録されています。取得状況は収集範囲・確認状況でご確認ください。"
+                    if daily_sources else
+                    "学童の予定・持ち物・保護者向け連絡は未収集です。入会・制度案内やあそべえだよりとは別です。"
+                ),
+                "source_ids": daily_sources,
+            }
         return {
             # A freshly fetched facility reference must not make an old school
             # snapshot look freshly checked. Empty means at least one is unknown.
@@ -311,6 +326,8 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             "source_count": len(results),
             "notice_count": len(notices),
             "reference_count": sum(notice["coverage_kind"] == "reference" for notice in notices),
+            "audience_excluded_count": sum(result.audience_excluded_count for result in results),
+            "after_school_scope": after_school_scope,
             "notices": notices,
             "warnings": warnings,
             "filters": {"source_id": source_id or "all", "level": level or "all", "ward": ward or "all", "grade": grade or "default", "feed": feed_group or "all", "group": source_group or "all"},
@@ -379,8 +396,8 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             return "all"
         if ward and ward not in {"all", "*", source["ward"]}:
             return "all"
-        if source_group and source_group not in {"all", "*", source["source_group"]}:
-            return "all"
+        # A school collection includes its related after-school and municipal
+        # sources. Filtering that group must not silently select every school.
         return source_id
 
     def _send_static(self, raw_path: str) -> None:

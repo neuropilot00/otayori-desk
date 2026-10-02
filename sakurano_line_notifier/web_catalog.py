@@ -32,6 +32,7 @@ from .extractor import (
 from .fetcher import FetchError, HttpFetcher, LinkCandidate, parse_relevant_links
 from .formatter import KIND_LABELS, categorize_text
 from .notice_dates import activity_dates, publication_date, calendar_date
+from .notice_audience import matches_audience
 from .catalog_watchdog import CatalogDispatchWatchdog
 
 
@@ -42,7 +43,7 @@ class CatalogError(RuntimeError):
 SOURCE_GROUP_LABELS = {
     "school": "学校",
     "municipality": "武蔵野市・教育委員会／市役所",
-    "after_school": "学童",
+    "after_school": "学童・あそべえ",
 }
 
 FEED_GROUPS = {"notices", "events"}
@@ -188,6 +189,7 @@ class CatalogResult:
     limit_reached: bool = False
     refreshing: bool = False
     freshness_status: str = "fresh"
+    audience_excluded_count: int = 0
 
     def coverage(self) -> dict[str, Any]:
         freshness = self.freshness_status if self.scanned_at else ("pending" if self.refreshing or self.freshness_status == "pending" else "unknown")
@@ -196,7 +198,7 @@ class CatalogResult:
             issues.append("stale")
         if any(notice.extraction_status != "ok" for notice in self.notices):
             issues.append("extraction")
-        if not self.notices and freshness not in {"pending"} and not self.refreshing:
+        if not self.notices and not self.audience_excluded_count and freshness not in {"pending"} and not self.refreshing:
             issues.append("unavailable")
         if self.warnings and not issues and not self.refreshing and freshness != "pending":
             issues.append("collection")
@@ -211,11 +213,13 @@ class CatalogResult:
             "status": ("partial" if self.notices else "unavailable") if self.warnings else (
                 "reference" if self.source.coverage_kind == "reference" else "checked"),
             "coverage_kind": self.source.coverage_kind,
+            "content_kind": self.source.content_kind,
             "coverage_note": self.source.coverage_note + (
                 " 約30分ごとに定期収集します。更新ボタンでは最新の保存データを確認します。"
                 if self.source.collection_driver == "scheduled" else ""),
             "notice_count": len(self.notices),
             "readable_count": sum(notice.extraction_status == "ok" for notice in self.notices),
+            "audience_excluded_count": self.audience_excluded_count,
             "discovered_count": self.discovered_count,
             "limit_reached": self.limit_reached,
             "refreshing": self.refreshing,
@@ -601,6 +605,8 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
     coverage_kind = str(raw.get("coverage_kind", "reference" if mode == "static" else "notices"))
     if coverage_kind not in {"reference", "notices"}:
         raise CatalogError("coverage_kind must be reference or notices")
+    if content_kind in {"gakudo_admissions", "gakudo_facility", "asobee_reference"} and coverage_kind != "reference":
+        raise CatalogError("after-school admission and facility sources must be reference")
     collection_driver = str(raw.get("collection_driver", "server"))
     if collection_driver not in {"server", "scheduled"}:
         raise CatalogError("collection_driver must be server or scheduled")
@@ -987,6 +993,7 @@ class CatalogService:
         refresh: bool = False,
     ) -> list[CatalogResult]:
         selected = [source for source in self.sources if source.enabled]
+        requested = None
         if source_id and source_id not in {"all", "*"}:
             requested = next((source for source in selected if source.id == source_id), None)
             if requested and requested.collection_root:
@@ -1042,7 +1049,18 @@ class CatalogService:
         # refresher may be using the same scan. Completed results populate the
         # cache for the next request.
         ordered = [results[source.id] for source in selected if source.id in results]
-        return ordered
+        target_level = requested.level if requested else level
+        target_grade = grade or (requested.default_grade if requested else None)
+        scoped = []
+        for result in ordered:
+            if result.source.source_group == "school":
+                scoped.append(result)
+                continue
+            # Filter a response copy only: stored city sources are shared by
+            # families, and API detail lookup + push both use this same path.
+            notices = tuple(notice for notice in result.notices if matches_audience(notice.title, target_level, target_grade))
+            scoped.append(replace(result, notices=notices, audience_excluded_count=len(result.notices) - len(notices)))
+        return scoped
 
     def _cached_result(
         self,

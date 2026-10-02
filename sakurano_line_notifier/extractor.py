@@ -195,6 +195,11 @@ def extract_document_text(payload: bytes, content_type: str = "", url: str = "")
             characters += len(text)
             if characters > MAX_TEXT_CHARACTERS:
                 raise ExtractionError("PDF text exceeds safety limit")
+            if _has_corrupted_native_text(plain_text) or (text != plain_text and _has_corrupted_native_text(text)):
+                # Broken CMaps can also produce incomplete OCR rasters when
+                # the renderer lacks the font mapping. Fail the whole PDF;
+                # neither surviving glyphs nor a partial page establish text.
+                raise ExtractionError(f"PDF has corrupted native text on page {number}; consult the original PDF")
             pages.append(text)
             if _page_needs_ocr(page, text):
                 unread_pages.append(number)
@@ -215,6 +220,25 @@ def extract_document_text(payload: bytes, content_type: str = "", url: str = "")
     if not clean_text_lines(text):
         raise ExtractionError(f"PDF contains no readable text: {url}")
     return text
+
+
+def _has_corrupted_native_text(text: str) -> bool:
+    """Detect repeated unmapped values, not the presence of foreign scripts.
+
+    Asobee's broken Identity-H mappings emit controls/unassigned code points
+    throughout otherwise long text. Require both eight such values and 2%
+    of non-whitespace characters; an isolated missing glyph is insufficient.
+    Assigned letters, combining marks, format controls and private-use icons
+    are not evidence of corruption. Inspect before normalization removes NUL.
+    """
+    characters = invalid = 0
+    for char in text:
+        if char.isspace():
+            continue
+        characters += 1
+        if char == "\ufffd" or unicodedata.category(char) in {"Cc", "Cn", "Cs"}:
+            invalid += 1
+    return invalid >= 8 and invalid * 50 >= characters
 
 
 def _page_needs_ocr(page, text: str) -> bool:

@@ -21,6 +21,11 @@ KIND_LABELS = {
     "grade_news": "学年だより",
     "school_news": "学校だより",
     "after_school": "学童クラブ",
+    "gakudo_admissions": "入会・制度案内",
+    "gakudo_facility": "学童の施設案内",
+    "gakudo_daily": "学童の生活連絡",
+    "asobee_reference": "あそべえの利用案内",
+    "asobee_letter": "あそべえだより",
     "city_info": "市・教育委員会",
     "document": "関連資料",
 }
@@ -33,6 +38,8 @@ def _is_subject_line(line: str) -> bool:
 def categorize_text(text: str, kind: str) -> OrderedDict[str, list[str]]:
     sections: OrderedDict[str, list[str]] = OrderedDict()
     default_category = "保護者への連絡" if kind == "grade_news" else "学校全体への連絡"
+    if kind in {"gakudo_admissions", "gakudo_facility", "gakudo_daily", "asobee_reference", "asobee_letter"}:
+        default_category = KIND_LABELS[kind]
     current_category = default_category
     for line in clean_text_lines(text):
         if len(line) <= 40 and "学年だより" in line:

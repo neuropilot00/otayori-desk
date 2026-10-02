@@ -38,7 +38,7 @@ function frontend({ api, timers } = {}) {
     setTimeout: timers?.setTimeout || setTimeout, clearTimeout: timers?.clearTimeout || clearTimeout,
     pilotApi: api || (async () => notice("detail", { text: "日本語の本文" })),
   });
-  vm.runInContext(`${script}\nthis.frontend = { state, I18N, t, noticeSections, noticeDateText, renderNoticeCard, detailMarkup, renderNotices, renderCoverage, coverageStatus, selectNotice, officialLink, japanToday, formatScanTime, loadNotices };`, context);
+  vm.runInContext(`${script}\nthis.frontend = { state, I18N, t, noticeSections, noticeDateText, renderNoticeCard, detailMarkup, renderNotices, renderCoverage, renderAfterSchoolScope, coverageStatus, selectNotice, officialLink, japanToday, formatScanTime, loadNotices, queryString, setLoading };`, context);
   return { ...context.frontend, document, get: (id) => document.getElementById(id) };
 }
 const ids = (items) => Array.from(items, (item) => item.id);
@@ -120,7 +120,7 @@ test("reference and static cards are collapsed, excluded from counts, and never 
   ], notice_count: 3, coverage: [] });
   const html = app.get("notice-list").innerHTML;
   assert.match(html, /<details class="archive-group reference-group"><summary>/);
-  assert.match(html, /施設案内（連絡帳ではありません）/);
+  assert.match(html, /参考資料（入会・制度・施設案内）/);
   assert.doesNotMatch(html, /latest-section|<details[^>]*\bopen\b/);
   assert.match(html, /https:\/\/school.example\/facility/);
   assert.equal(app.get("metric-notices").textContent, 0);
@@ -137,6 +137,178 @@ test("event rendering selects the nearest date and leaves undated cards outside 
   assert.ok(html.indexOf('data-notice-id="unknown"') < html.indexOf('<details class="archive-group">'));
   assert.match(html, /日付未確認/);
   assert.equal(app.state.selectedId, "oct");
+});
+
+const afterSchoolScope = (daily_notice_status = "not_collected", source_ids = []) => ({
+  daily_notice_status, source_ids,
+  scope_note: "予定・持ち物・保護者向け連絡は未収集。入会案内・あそべえだよりとは別です。",
+});
+const afterSchoolNotice = (kind, fields = {}) => notice(kind, {
+  source_id: kind, source_group: "after_school", source_group_label: "学童・あそべえ", kind, ...fields,
+});
+
+test("admissions and guides are references while Asobee letters and supplied daily notices remain distinct", () => {
+  const app = frontend();
+  const references = ["gakudo_admissions", "gakudo_facility", "asobee_reference"];
+  for (const coverage_kind of ["reference", undefined]) {
+    app.renderNotices({ notices: references.map((kind) => afterSchoolNotice(kind, { coverage_kind })), notice_count: 3, after_school_scope: afterSchoolScope() });
+    assert.equal(app.get("metric-notices").textContent, 0);
+    assert.equal(app.state.selectedId, null);
+    assert.match(app.get("notice-list").innerHTML, /参考資料（入会・制度・施設案内）/);
+    assert.match(app.get("notice-list").innerHTML, /新着通知の対象ではありません/);
+    assert.doesNotMatch(app.get("notice-list").innerHTML, /latest-section|<details[^>]*\bopen\b/);
+  }
+  const mixed = [...references.map((kind) => afterSchoolNotice(kind, { coverage_kind: "reference" })), afterSchoolNotice("asobee_letter"), afterSchoolNotice("gakudo_daily")];
+  const sections = app.noticeSections(mixed);
+  assert.deepEqual(ids(sections.references), references);
+  assert.deepEqual(ids(sections.active[0].items).sort(), ["asobee_letter", "gakudo_daily"]);
+  app.renderNotices({ notices: mixed, notice_count: 5 });
+  assert.equal(app.get("metric-notices").textContent, 2);
+  assert.match(app.get("notice-list").innerHTML, /あそべえだより/);
+  assert.match(app.get("notice-list").innerHTML, /学童の生活連絡/);
+});
+
+test("typed card and detail badges, original-only state and official links survive all four locales", () => {
+  const app = frontend();
+  const kinds = ["gakudo_admissions", "gakudo_facility", "asobee_reference", "asobee_letter", "gakudo_daily"];
+  for (const language of ["ja", "ko", "en", "zh"]) {
+    app.state.language = language;
+    for (const kind of kinds) {
+      // The machine-readable kind must win over a legacy generic label.
+      const item = afterSchoolNotice(kind, { kind_label: "学童クラブ", title: "日本語の資料", text: "原文をご確認ください。", extraction_status: "original_only" });
+      for (const html of [app.renderNoticeCard(item), app.detailMarkup(item)]) {
+        assert.ok(html.includes(app.t(`kind.${kind}`).replaceAll("&", "&amp;")), `${language}: ${kind}`);
+        assert.ok(html.includes(app.t("groups.afterSchool").replaceAll("&", "&amp;")));
+        assert.ok(html.includes(app.t("extraction.unverified")));
+        assert.match(html, /日本語の資料/);
+        assert.ok(html.includes(`href="https://school.example/${kind}"`));
+      }
+      if (["gakudo_admissions", "gakudo_facility", "asobee_reference"].includes(kind)) {
+        assert.ok(app.detailMarkup(item).includes(app.t("reference.note")));
+      }
+      const labelOnly = { ...item, kind: undefined, kind_label: app.I18N.ja[`kind.${kind}`] };
+      assert.ok(app.renderNoticeCard(labelOnly).includes(app.t(`kind.${kind}`).replaceAll("&", "&amp;")));
+    }
+  }
+});
+
+test("coverage content_kind supplies classification without mistaking reference guides for daily notices", () => {
+  const app = frontend();
+  app.state.config = { sources: [{ id: "facility", content_kind: "gakudo_facility", coverage_kind: "reference" }] };
+  app.renderNotices({
+    notices: [afterSchoolNotice(undefined, { id: "guide", source_id: "guide" }), afterSchoolNotice(undefined, { id: "facility", source_id: "facility" }), afterSchoolNotice(undefined, { id: "letter", source_id: "letter" })],
+    coverage: [
+      { source_id: "guide", content_kind: "asobee_reference", coverage_kind: "reference", status: "checked" },
+      { source_id: "letter", content_kind: "asobee_letter", status: "checked" },
+    ],
+  });
+  assert.equal(app.get("metric-notices").textContent, 1);
+  assert.equal(app.state.selectedId, "letter");
+  assert.match(app.get("notice-list").innerHTML, /あそべえの利用案内|学童の施設案内|あそべえだより/);
+  assert.match(app.get("coverage-list").innerHTML, /class="pill soft">あそべえの利用案内/);
+  assert.match(app.get("coverage-list").innerHTML, /class="pill soft">あそべえだより/);
+  assert.doesNotMatch(app.get("coverage-list").innerHTML, /学童の生活連絡/);
+});
+
+test("missing scope is not treated as uncollected, and zero notices still show explicit after-school scope", () => {
+  const app = frontend();
+  for (const group of ["all", "after_school"]) {
+    app.get("group-filter").value = group;
+    for (const scope of [undefined, null]) {
+      app.renderNotices({ notices: [], after_school_scope: scope });
+      assert.equal(app.get("after-school-scope").hidden, true);
+    }
+    app.renderNotices({ notices: [], after_school_scope: afterSchoolScope(), filters: { group, feed: "notices" } });
+    assert.equal(app.get("after-school-scope").hidden, false);
+    assert.equal(app.get("after-school-scope-summary").textContent, "学童の生活連絡：未収集");
+    assert.equal(app.get("after-school-scope-note").textContent, afterSchoolScope().scope_note);
+    assert.equal(app.get("after-school-scope-sources").hidden, true);
+    assert.equal(app.get("metric-notices").textContent, 0);
+    assert.doesNotMatch(app.get("notice-list").innerHTML, /学童の生活連絡/);
+    assert.equal(app.get("coverage-alert").hidden, true, "an unregistered scope is neutral, not a source failure");
+  }
+});
+
+test("after-school scope is hidden for school-only, municipality and event filters", () => {
+  const app = frontend();
+  const payload = { notices: [], after_school_scope: afterSchoolScope() };
+  for (const group of ["school", "municipality"]) {
+    app.get("group-filter").value = group;
+    app.renderNotices(payload);
+    assert.equal(app.get("after-school-scope").hidden, true);
+    app.get("group-filter").value = "all";
+    app.renderNotices({ ...payload, filters: { group } });
+    assert.equal(app.get("after-school-scope").hidden, true);
+  }
+  app.state.feed = "events";
+  app.renderNotices(payload);
+  assert.equal(app.get("after-school-scope").hidden, true);
+  app.state.feed = "notices";
+  app.renderNotices({ ...payload, filters: { feed: "events" } });
+  assert.equal(app.get("after-school-scope").hidden, true);
+});
+
+test("registered daily scope reports actual failures or unknown coverage without claiming completeness", () => {
+  const app = frontend();
+  app.state.config = { sources: [{ id: "daily", name: "学童の連絡ページ", content_kind: "gakudo_daily" }] };
+  const payload = { notices: [], after_school_scope: afterSchoolScope("registered", ["daily"]), coverage: [] };
+  app.renderNotices(payload);
+  assert.equal(app.get("after-school-scope-summary").textContent, "学童の生活連絡：収集対象に登録");
+  assert.match(app.get("after-school-scope-sources").innerHTML, /学童の連絡ページ.*確認状況不明/);
+  assert.equal(app.get("metric-notices").textContent, 0);
+  assert.doesNotMatch(app.get("notice-list").innerHTML, /notice-card/);
+  for (const issue of ["stale", "collection", "extraction", "unavailable", "refreshing"]) {
+    app.renderNotices({ ...payload, coverage: [{ source_id: "daily", status: "partial", content_kind: "gakudo_daily", issue_codes: [issue] }] });
+    assert.ok(app.get("after-school-scope-sources").innerHTML.includes(app.t(`coverage.${issue}`)));
+    assert.equal(app.get("after-school-scope-summary").textContent, "学童の生活連絡：収集対象に登録");
+  }
+  app.renderNotices({ ...payload, coverage: [{ source_id: "daily", status: "checked", freshness_status: "fresh", issue_codes: [] }] });
+  assert.match(app.get("after-school-scope-sources").innerHTML, /公開範囲を確認/);
+  assert.match(app.get("after-school-scope-note").textContent, /すべての連絡の取得を保証するものではありません/);
+  app.renderNotices({ ...payload, after_school_scope: afterSchoolScope("registered") });
+  assert.match(app.get("after-school-scope-sources").innerHTML, /確認状況不明/);
+});
+
+test("scope uses native closed details, preserves manual toggles and localizes on rerender", () => {
+  const app = frontend();
+  const index = readFileSync(path.join(web, "index.html"), "utf8");
+  assert.match(index, /<details class="coverage-details" id="after-school-scope" hidden>\s*<summary id="after-school-scope-summary">/);
+  assert.equal((index.match(/data-i18n="groups.afterSchool">学童・あそべえ/g) || []).length, 2);
+  const payload = { notices: [], after_school_scope: afterSchoolScope() };
+  const panel = app.get("after-school-scope");
+  app.renderNotices(payload);
+  assert.equal(panel.open, false);
+  for (const language of ["ja", "ko", "en", "zh"]) {
+    app.state.language = language;
+    for (const open of [true, false]) {
+      panel.open = open; // Native summary activation owns this state.
+      app.renderNotices(payload);
+      assert.equal(panel.open, open);
+      assert.equal(app.get("after-school-scope-summary").textContent, app.t("afterSchool.notCollected"));
+      assert.equal(app.get("after-school-scope-note").textContent, app.t("afterSchool.notCollectedNote"));
+      app.renderNotices({ ...payload, after_school_scope: afterSchoolScope("registered") });
+      assert.equal(panel.open, open);
+      assert.equal(app.get("after-school-scope-summary").textContent, app.t("afterSchool.registered"));
+      assert.equal(app.get("after-school-scope-note").textContent, app.t("afterSchool.registeredNote"));
+    }
+  }
+  app.setLoading(true);
+  assert.equal(panel.hidden, true, "do not show a previous filter's scope while a request is loading");
+});
+
+test("changing the source group retains the chosen school and never broadens its request", async () => {
+  const app = pollingFrontend(async () => ({ notices: [], after_school_scope: null }));
+  app.get("source-filter").value = "sakurano";
+  for (const group of ["all", "after_school", "municipality", "school", "all"]) {
+    app.get("group-filter").value = group;
+    await app.loadNotices();
+    const query = new URL(app.calls.at(-1).url, "https://example.test").searchParams;
+    assert.equal(query.get("source_id"), "sakurano");
+    assert.equal(query.get("group"), group === "all" ? null : group);
+    assert.equal(app.get("source-filter").value, "sakurano");
+  }
+  app.get("source-filter").value = "all";
+  assert.equal(new URLSearchParams(app.queryString()).get("source_id"), "all");
 });
 
 test("date roles do not invent publication dates, including undated and invalid values", () => {
@@ -175,7 +347,7 @@ test("coverage exposes source failures, limits, counts, official links, and stat
   assert.match(html, /公開PDFの一部のみ/);
   assert.match(html, /https:\/\/city.example\/facility/);
   assert.match(html, /status-reference/);
-  assert.match(html, /新着通知の確認対象ではありません/);
+  assert.match(html, /日々の連絡・新着通知の対象ではありません/);
   assert.match(html, /確認日時 —/);
   assert.doesNotMatch(app.get("coverage-alert").textContent, /桜野小学校|市のイベント|収集上限/);
   assert.match(app.get("coverage-alert").textContent, /取得できませんでした 1/);
@@ -436,7 +608,7 @@ test("readable and legacy details include the machine-extraction/OCR note withou
 
 test("key labels exist in JA/KO/EN/ZH while notice titles and bodies stay Japanese", () => {
   const app = frontend();
-  const keys = Object.keys(app.I18N.ja).filter((key) => /^(coverage\.|events\.|reference\.|extraction\.|common\.(event|deadline)$)/.test(key));
+  const keys = Object.keys(app.I18N.ja).filter((key) => /^(coverage\.|events\.|reference\.|extraction\.|afterSchool\.|kind\.|groups\.|common\.(event|deadline)$)/.test(key));
   for (const language of ["ja", "ko", "en", "zh"]) {
     app.state.language = language;
     for (const key of keys) assert.ok(app.I18N[language][key], `${language}: ${key}`);
