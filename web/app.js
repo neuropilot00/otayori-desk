@@ -803,8 +803,16 @@ async function loadNotices(refresh = false) {
         payload = await api(getPath, { signal: controller.signal });
         if (requestVersion !== state.requestVersion || controller.signal.aborted) return;
         state.refreshStatus = payloadRefreshing(payload) ? "refreshing" : null;
-        // Unchanged cached responses should not collapse an open card or refetch its detail.
-        if (JSON.stringify(payload) !== JSON.stringify(state.payload)) renderNotices(payload);
+        // Collection timestamps/status can change every poll while the notices
+        // do not. Do not close the reader or keep invalidating its detail request.
+        if (JSON.stringify(payload.notices) !== JSON.stringify(state.payload?.notices)) {
+          renderNotices(payload, { showInline: document.querySelectorAll(".notice-card.expanded").length > 0 });
+        } else {
+          state.payload = payload;
+          $("metric-scanned").textContent = formatScanTime(payload.scanned_at);
+          renderCoverage(payload);
+          renderAfterSchoolScope(payload);
+        }
       }
     }
     if (refresh) {

@@ -670,6 +670,23 @@ test("manual refresh polls ordinary GETs until fresh, without rerendering identi
   assert.equal(app.timers.size, 0);
 });
 
+test("status-only poll changes preserve the reader without refetching detail", async () => {
+  const items = [notice("same")];
+  const pending = { notices: items, refreshing: true, scanned_at: "2026-10-01T03:00:00Z", coverage: [] };
+  const complete = { ...pending, refreshing: false, scanned_at: "2026-10-01T03:01:00Z" };
+  const app = pollingFrontend((number) => Promise.resolve(number === 1 ? pending : complete));
+  const loading = app.loadNotices();
+  await flush();
+  app.get("notice-list").innerHTML += "reader-preserved-marker";
+  const detailCalls = app.detailCalls;
+  await app.timers.advance(2000);
+  await loading;
+  assert.equal(app.state.payload, complete);
+  assert.equal(app.detailCalls, detailCalls);
+  assert.match(app.get("notice-list").innerHTML, /reader-preserved-marker/);
+  assert.equal(app.get("metric-scanned").textContent, app.formatScanTime(complete.scanned_at));
+});
+
 test("initial GET also polls when only a source-level refreshing flag is set", async () => {
   const app = pollingFrontend(async (number) => ({ notices: [], coverage: [{ source_id: "school", status: "checked", refreshing: number === 1 }] }));
   const loading = app.loadNotices();
