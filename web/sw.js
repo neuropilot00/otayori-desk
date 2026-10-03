@@ -1,6 +1,6 @@
 const CACHE_PREFIX = "otayori-desk-shell-";
-const CACHE_NAME = `${CACHE_PREFIX}v15`;
-const SHELL = ["/", "/app.css?v=20261002-1", "/app.js?v=20261002-5", "/policies.html", "/policies.js?v=20261002-1", "/manifest.webmanifest", "/icon.svg"];
+const CACHE_NAME = `${CACHE_PREFIX}v16`;
+const SHELL = ["/", "/app.css?v=20261002-1", "/app.js?v=20261003-1", "/policies.html", "/policies.js?v=20261002-1", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));

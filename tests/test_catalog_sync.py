@@ -50,6 +50,20 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(notice.kind, "gakudo_admissions")
         self.assertEqual(notice.coverage_kind, "reference")
 
+    def test_same_host_other_facility_snapshot_is_rejected(self):
+        payload = snapshot_payload(self.result)
+        payload["notices"][0]["url"] = "https://city.example/different-club"
+        with self.assertRaisesRegex(CatalogError, "outside configured page"):
+            accept_snapshot(self.catalog, payload)
+        self.assertFalse(self.catalog._cache)
+
+    def test_blank_body_cannot_be_imported_as_successful_extraction(self):
+        payload = snapshot_payload(self.result)
+        payload["notices"][0]["text"] = " \n\t"
+        with self.assertRaisesRegex(CatalogError, "invalid snapshot extraction"):
+            accept_snapshot(self.catalog, payload)
+        self.assertFalse(self.catalog._cache)
+
     def test_older_snapshot_cannot_replace_current_content(self):
         accept_snapshot(self.catalog, snapshot_payload(self.result))
         older = replace(self.result, scanned_at=(datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat())
@@ -77,6 +91,17 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(coverage["freshness_status"], "pending")
         self.assertEqual(coverage["issue_codes"], [])
         self.assertEqual(coverage["checked_at"], "")
+
+    def test_delay_warning_uses_same_45_minute_target_as_recovery(self):
+        for minutes, expected in ((44, "fresh"), (45, "stale"), (89, "stale")):
+            with self.subTest(minutes=minutes):
+                stamp = (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
+                self.catalog._cache.clear()
+                self.catalog._cache_store.save(replace(self.result, scanned_at=stamp))
+                result = self.catalog.get_source("city")
+                self.assertEqual(result.coverage()["freshness_status"], expected)
+                self.assertEqual(result.scanned_at, stamp)
+                self.assertIn("実行が遅れる場合", result.coverage()["coverage_note"])
 
     def test_background_refresh_checks_watchdog_only_in_scheduled_mode(self):
         self.catalog.get_many = Mock(return_value=[self.result])

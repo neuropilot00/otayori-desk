@@ -5,7 +5,7 @@ import re
 import time
 from dataclasses import replace
 from datetime import datetime, timezone
-from urllib.parse import urlparse
+from urllib.parse import urldefrag, urlparse
 
 from .web_catalog import CatalogCacheStore, CatalogError, CatalogResult, CatalogService
 
@@ -62,9 +62,11 @@ def accept_snapshot(service: CatalogService, payload: dict) -> bool:
             safe_url = False
         if not safe_url or raw["source_id"] != source.id or raw["grade"] != grade:
             raise CatalogError("snapshot document outside configured source")
+        if source.mode == "html_page" and urldefrag(raw["url"])[0] not in {urldefrag(page)[0] for page in source.page_urls}:
+            raise CatalogError("snapshot document outside configured page")
         if not re.fullmatch(r"[a-f0-9]{20}", raw["id"]) or not re.fullmatch(r"[a-f0-9]{64}", raw["content_hash"]):
             raise CatalogError("invalid snapshot identifiers")
-        if not 1 <= len(raw["text"]) <= 200000 or len(raw["title"]) > 1000 or raw.get("extraction_status") != "ok":
+        if not 1 <= len(raw["text"]) <= 200000 or not raw["text"].strip() or len(raw["title"]) > 1000 or raw.get("extraction_status") != "ok":
             raise CatalogError("invalid snapshot extraction")
         if raw["id"] in ids or raw["url"] in urls:
             raise CatalogError("duplicate snapshot document")

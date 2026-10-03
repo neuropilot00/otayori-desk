@@ -1,0 +1,49 @@
+{
+  "type": "synthetic_not_real_user_survey",
+  "personas": 96,
+  "real_users": 0,
+  "social_rounds": 0,
+  "interviews": 96,
+  "models": [
+    "gpt-6-astra"
+  ],
+  "provider_calls": 96,
+  "mirofish_commit": "7657031ac01184afe2cb220f5ee3545573b5e843",
+  "app_commit": "149cd9e008739353338de1bcbe7896002475d064",
+  "packages": {
+    "camel-oasis": "0.2.5",
+    "camel-ai": "0.2.78"
+  },
+  "cohorts": {
+    "20s": 12,
+    "30s": 24,
+    "40s": 24,
+    "50s": 24,
+    "60+": 12
+  },
+  "priority_counts_not_population_estimates": {
+    "coverage": 61,
+    "multi_child": 16,
+    "identity": 10,
+    "freshness": 7,
+    "translation": 2
+  },
+  "sha256": {
+    "seed.md": "bd7e55dd314a0a785486abc1b93ad250fd9f7f59ce7d030f289193e70f745799",
+    "public-coverage.json": "fb3040f1b52460ef1e5a977f383d9a2d997906943bb4efa50d541fae8c57d44d",
+    "results.json": "6bd4c1179c7ce23cc06031e3678fd8a7f88e49cf79b22b1872c81b41000af795",
+    "simulation-trace.json": "3b6e392e4635d289124aaf218b12fbd0043f5b1bd41da28f23cc9240a7580ee8",
+    "model-receipts.json": "7a4d0a5fb46113980cf6310c179ce3e9e376abf26e90cb389e0eca31778028f1",
+    "run/reddit_profiles.json": "3c98433e0740a8277699e0de80028de0336cb7b0439bed2abf745fdbcbef55a3",
+    "run/interview_plan.json": "f40b3209eeadb351b64916692732ba997bfbae0e75bcc5fba15fca78cde3014b",
+    "input-version.json": "3a2ac9eee43b5f7769dbca79dbc28d6077d2cf39b4f8561895d3d07e6c4add75"
+  },
+  "limitations": [
+    "Purposive fictional cohorts; not Tokyo population weights",
+    "Age does not imply ability or preferences",
+    "Same-model correlation and evidence priming",
+    "No persona browser operation or actual phone notifications",
+    "Public sources only; no private school/child records"
+  ],
+  "artifact_directory": "../otayori-tokyo-commercial-study"
+}

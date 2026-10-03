@@ -28,4 +28,17 @@ jobs:
       - name: Install application dependencies
         run: python -m pip install -r requirements.txt
       - name: Audit registered public sources without sending notifications
-        run: python -m sakurano_line_notifier.source_audit
+        run: python -m sakurano_line_notifier.source_audit --output source-audit.json
+      - name: Check deployed per-source quality independently of HTTP readiness
+        if: always()
+        run: python -m sakurano_line_notifier.release_quality --output public-quality.json
+      - name: Preserve public-source evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: public-source-quality
+          path: |
+            source-audit.json
+            public-quality.json
+          retention-days: 14
+          if-no-files-found: warn

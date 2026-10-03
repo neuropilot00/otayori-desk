@@ -278,8 +278,7 @@ function populateConfig(config) {
     wardFilter.appendChild(option);
   });
   const savedGrade = localStorage.getItem("school-news-grade");
-  const gradeExists = Array.from($("grade-filter").options).some((option) => option.value === savedGrade);
-  $("grade-filter").value = gradeExists ? savedGrade : (config.default_grade || "全学年");
+  updateGradeOptions(savedGrade || config.default_grade);
   const savedGroup = localStorage.getItem("school-news-group");
   $("group-filter").value = ["all", "school", "municipality", "after_school"].includes(savedGroup) ? savedGroup : "all";
   updateFilterContext();
@@ -311,6 +310,38 @@ function renderSourceOptions(selectedId = "all") {
     sourceFilter.appendChild(option);
   });
   sourceFilter.value = state.config.sources.some((source) => source.id === selectedId) ? selectedId : "all";
+}
+
+function updateGradeOptions(preferred = $("grade-filter").value) {
+  const selected = state.config?.sources.find((source) => source.id === selectedValue("source-filter"));
+  // Source grades describe collection/cache support. The viewer's grade is a
+  // separate audience filter, including for a source collected as 全学年.
+  const level = selected?.level || selectedValue("level-filter");
+  const maximum = ["中学校", "高等学校"].includes(level) ? 3 : 6;
+  const grades = [...Array.from({ length: maximum }, (_, index) => `${index + 1}年生`), "全学年"];
+  const filter = $("grade-filter");
+  filter.replaceChildren();
+  grades.forEach((grade) => {
+    const option = document.createElement("option");
+    option.value = grade; option.textContent = localizeLabel(grade);
+    option.dataset.i18n = LABEL_KEYS[grade];
+    filter.appendChild(option);
+  });
+  filter.value = grades.includes(preferred) ? preferred : grades[0];
+}
+
+function changeDisplayFilter(id) {
+  const source = state.config?.sources.find((item) => item.id === selectedValue("source-filter"));
+  if (id === "source-filter" && source) {
+    if (!["all", source.level].includes(selectedValue("level-filter"))) $("level-filter").value = "all";
+    if (!["all", source.ward].includes(selectedValue("ward-filter"))) $("ward-filter").value = "all";
+  } else if (source && ((id === "level-filter" && !["all", source.level].includes(selectedValue(id)))
+             || (id === "ward-filter" && !["all", source.ward].includes(selectedValue(id))))) {
+    $("source-filter").value = "all";
+  }
+  if (["source-filter", "level-filter", "ward-filter"].includes(id)) updateGradeOptions();
+  savePreferences(); updateFilterContext();
+  return loadNotices(false);
 }
 
 function formatDistance(kilometers) {
@@ -739,6 +770,14 @@ async function selectNotice(id, { showInline = true } = {}) {
     renderPlaceholder();
     return;
   }
+  if (state.selectedId !== id) {
+    $("detail-panel").innerHTML = `<div class="detail-placeholder"><p role="status">${escapeHtml(t("detail.loading"))}</p></div>`;
+    document.querySelectorAll(".notice-card.expanded").forEach((card) => {
+      card.classList.remove("expanded");
+      card.querySelector("button")?.setAttribute("aria-expanded", "false");
+      card.querySelector(".inline-detail")?.replaceChildren();
+    });
+  }
   state.selectedId = id;
   document.querySelectorAll(".notice-card").forEach((card) => card.classList.toggle("selected", card.dataset.noticeId === id));
   if (selectedCard && showInline) {
@@ -747,13 +786,13 @@ async function selectNotice(id, { showInline = true } = {}) {
     selectedCard.classList.add("expanded");
     selectedCard.querySelector("button")?.setAttribute("aria-expanded", "true");
   }
+  const suffix = queryString();
   try {
-    const suffix = queryString();
     const detail = await api(`/api/notices/${encodeURIComponent(id)}${suffix ? `?${suffix}` : ""}`);
-    if (state.selectedId !== id || detailRequestVersion !== state.detailRequestVersion) return;
+    if (state.selectedId !== id || detailRequestVersion !== state.detailRequestVersion || suffix !== queryString()) return;
     renderDetail(detail, selectedCard, showInline);
   } catch (error) {
-    if (state.selectedId !== id || detailRequestVersion !== state.detailRequestVersion) return;
+    if (state.selectedId !== id || detailRequestVersion !== state.detailRequestVersion || suffix !== queryString()) return;
     const message = `<div class="detail-placeholder"><div class="placeholder-mark" aria-hidden="true">!</div><p class="eyebrow">${escapeHtml(t("detail.errorEyebrow"))}</p><h3>${escapeHtml(t("detail.errorTitle"))}</h3><p>${escapeHtml(error.message)}</p></div>`;
     $("detail-panel").innerHTML = message;
     if (selectedCard && showInline) {
@@ -790,7 +829,10 @@ async function loadNotices(refresh = false) {
   if (!refresh) {
     // Filter loads invalidate old details; a refresh of the same scope does not.
     state.detailRequestVersion += 1;
+    state.selectedId = null;
+    state.notices = [];
     state.payload = null;
+    renderPlaceholder();
   }
   let pollTimeout = null;
   let polling = false;
@@ -1208,7 +1250,7 @@ async function boot() {
     state.config = await api("/api/config");
     populateConfig(state.config);
     updatePushControls();
-    ["source-filter", "level-filter", "ward-filter", "grade-filter", "group-filter"].forEach((id) => $(id).addEventListener("change", () => { savePreferences(); updateFilterContext(); loadNotices(false); }));
+    ["source-filter", "level-filter", "ward-filter", "grade-filter", "group-filter"].forEach((id) => $(id).addEventListener("change", () => { changeDisplayFilter(id); }));
     $("refresh-button").addEventListener("click", () => loadNotices(true));
     await loadNotices(false);
   } catch (error) {

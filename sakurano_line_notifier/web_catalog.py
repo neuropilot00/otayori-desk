@@ -215,7 +215,7 @@ class CatalogResult:
             "coverage_kind": self.source.coverage_kind,
             "content_kind": self.source.content_kind,
             "coverage_note": self.source.coverage_note + (
-                " 約30分ごとに定期収集します。更新ボタンでは最新の保存データを確認します。"
+                " 30分間隔で収集を予約しています（実行が遅れる場合があります）。更新ボタンは保存済みデータを確認します。確認日時をご覧ください。"
                 if self.source.collection_driver == "scheduled" else ""),
             "notice_count": len(self.notices),
             "readable_count": sum(notice.extraction_status == "ok" for notice in self.notices),
@@ -540,6 +540,21 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
     missing = [key for key in required if not str(raw.get(key, "")).strip()]
     if missing:
         raise CatalogError(f"sources[{index}] is missing: {', '.join(missing)}")
+    for key in required:
+        if not isinstance(raw[key], str) or not raw[key].strip():
+            raise CatalogError(f"sources[{index}].{key} must be a non-empty string")
+    for key in ("id", "collection_id"):
+        value = raw.get(key, raw["id"])
+        if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", value.strip()) or value.strip() == "all":
+            raise CatalogError(f"sources[{index}].{key} must be a registry ID, not a selection wildcard")
+    for key in ("enabled", "collection_root", "shared_with_ward"):
+        if key in raw and not isinstance(raw[key], bool):
+            raise CatalogError(f"sources[{index}].{key} must be a boolean")
+    for key in ("mode", "source_group", "feed_group", "content_kind", "coverage_kind", "collection_driver"):
+        if key in raw and (not isinstance(raw[key], str) or not raw[key].strip()):
+            raise CatalogError(f"sources[{index}].{key} must be a non-empty string")
+    if raw["level"].strip() not in {"小学校", "中学校", "高等学校"}:
+        raise CatalogError(f"sources[{index}].level must be 小学校, 中学校, or 高等学校")
     raw_page_urls = raw.get("page_urls")
     if raw_page_urls is None:
         raw_page_urls = [raw.get("page_url", "")]
@@ -573,13 +588,15 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
         raise CatalogError(f"sources[{index}].max_documents must be an integer") from exc
     if max_documents < 1 or max_documents > 100:
         raise CatalogError(f"sources[{index}].max_documents must be between 1 and 100")
-    source_group = str(raw.get("source_group", "school")).strip().lower() or "school"
+    source_group = raw.get("source_group", "school").strip().lower()
     if source_group not in SOURCE_GROUP_LABELS:
         raise CatalogError(f"sources[{index}].source_group must be school, municipality, or after_school")
-    feed_group = str(raw.get("feed_group", "notices")).strip().lower() or "notices"
+    feed_group = raw.get("feed_group", "notices").strip().lower()
     if feed_group not in FEED_GROUPS:
         raise CatalogError(f"sources[{index}].feed_group must be notices or events")
-    content_kind = str(raw.get("content_kind", "document")).strip() or "document"
+    content_kind = raw.get("content_kind", "document").strip()
+    if content_kind not in KIND_LABELS:
+        raise CatalogError(f"sources[{index}].content_kind is not supported")
     static_text = str(raw.get("static_text", "")).strip()
     static_title = str(raw.get("static_title", "")).strip()
     if mode == "static" and not static_text:
@@ -605,6 +622,8 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
     coverage_kind = str(raw.get("coverage_kind", "reference" if mode == "static" else "notices"))
     if coverage_kind not in {"reference", "notices"}:
         raise CatalogError("coverage_kind must be reference or notices")
+    if mode == "static" and coverage_kind != "reference":
+        raise CatalogError("static sources must be reference, not live notices")
     if content_kind in {"gakudo_admissions", "gakudo_facility", "asobee_reference"} and coverage_kind != "reference":
         raise CatalogError("after-school admission and facility sources must be reference")
     collection_driver = str(raw.get("collection_driver", "server"))
@@ -629,10 +648,10 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
         include_patterns=include_patterns,
         exclude_patterns=exclude_patterns,
         max_documents=max_documents,
-        enabled=bool(raw.get("enabled", True)),
+        enabled=raw.get("enabled", True),
         note=str(raw.get("note", "")).strip(),
-        collection_id=str(raw.get("collection_id", raw["id"])).strip() or str(raw["id"]).strip(),
-        collection_root=bool(raw.get("collection_root", True)),
+        collection_id=raw.get("collection_id", raw["id"]).strip(),
+        collection_root=raw.get("collection_root", True),
         source_group=source_group,
         feed_group=feed_group,
         content_kind=content_kind,
@@ -645,7 +664,7 @@ def _parse_source(raw: object, index: int) -> SourceConfig:
         discovery_depth=discovery_depth,
         coverage_kind=coverage_kind,
         coverage_note=str(raw.get("coverage_note", SourceConfig.coverage_note)),
-        shared_with_ward=bool(raw.get("shared_with_ward", False)),
+        shared_with_ward=raw.get("shared_with_ward", False),
         collection_driver=collection_driver,
         notification_revision=notification_revision,
         related_collections=tuple(dict.fromkeys(related)),
@@ -665,6 +684,8 @@ def _parse_coordinate(value: object, name: str, index: int, minimum: float, maxi
 
 
 def load_sources(path: Path) -> list[SourceConfig]:
+    from .registry_validation import validate_source_relationships
+
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -672,12 +693,10 @@ def load_sources(path: Path) -> list[SourceConfig]:
     if not isinstance(payload, dict) or not isinstance(payload.get("sources"), list):
         raise CatalogError("sources.json must contain a sources list")
     sources = [_parse_source(raw, index) for index, raw in enumerate(payload["sources"])]
-    ids = [source.id for source in sources]
-    if len(set(ids)) != len(ids):
-        raise CatalogError("source ids must be unique")
-    collections = {source.collection_id for source in sources}
-    if any(set(source.related_collections) - collections for source in sources):
-        raise CatalogError("related_collections contains an unknown collection")
+    try:
+        validate_source_relationships(sources)
+    except ValueError as exc:
+        raise CatalogError(str(exc)) from exc
     return sources
 
 
@@ -939,7 +958,7 @@ class CatalogService:
                 return CatalogResult(source, effective_grade, "", (), ("定期収集の初回データを待っています。公式ページをご確認ください。",), freshness_status="pending")
             result = cached[1]
             age = (datetime.now(timezone.utc) - datetime.fromisoformat(result.scanned_at)).total_seconds()
-            if age > 5400:
+            if age >= CatalogDispatchWatchdog.stale_after_seconds:
                 return replace(result, warnings=("定期収集が遅れています。前回確認した情報です。公式ページもご確認ください。",), freshness_status="stale")
             return result
         if not refresh and cached and time.monotonic() - cached[0] < self._cache_ttl_seconds:

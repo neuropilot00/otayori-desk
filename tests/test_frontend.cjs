@@ -893,7 +893,9 @@ test("a filter change rejects late reader success and error before its list resp
     if (fail) rejectDetail(new Error("stale-detail-error"));
     else resolveDetail({ ...app.item, text: "stale-detail-text" });
     await flush();
-    assert.equal(app.get("detail-panel").innerHTML, previousDetail);
+    assert.notEqual(app.get("detail-panel").innerHTML, previousDetail);
+    assert.match(app.get("detail-panel").innerHTML, /detail-placeholder/);
+    assert.doesNotMatch(app.get("detail-panel").innerHTML, /stale-detail-text|stale-detail-error/);
     assert.equal(app.card(), null);
     resolveLoad({ notices: [] });
     await flush();
