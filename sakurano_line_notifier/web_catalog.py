@@ -1129,6 +1129,7 @@ class CatalogService:
         source_group: str | None = None,
         refresh: bool = False,
         request_external_refresh: bool = False,
+        wait_for_sources: bool = True,
     ) -> list[CatalogResult]:
         selected = [source for source in self.sources if source.enabled]
         requested = None
@@ -1168,7 +1169,7 @@ class CatalogService:
             if not self._cached_result(source, grade, refresh, results)
         }
         future_sources = {future: next(source for source in selected if source.id == source_id) for source_id, future in futures.items()}
-        done, not_done = wait(future_sources, timeout=self._max_wait_seconds)
+        done, not_done = wait(future_sources, timeout=self._max_wait_seconds if wait_for_sources else 0)
         for future in done:
             source = future_sources[future]
             try:
@@ -1253,10 +1254,14 @@ class CatalogService:
         feed_group: str | None = None,
         source_group: str | None = None,
     ) -> CatalogNotice | None:
-        for result in self.get_many(source_id=source_id, grade=grade, level=level, ward=ward, feed_group=feed_group, source_group=source_group):
-            for notice in result.notices:
-                if notice.id == notice_id:
-                    return notice
+        # A reader opened from a cached list must not wait for unrelated PDFs.
+        # Reuse the same scope/audience filtering, then retain the bounded
+        # collection wait for cold direct requests whose notice is not cached.
+        for wait_for_sources in (False, True):
+            for result in self.get_many(source_id=source_id, grade=grade, level=level, ward=ward, feed_group=feed_group, source_group=source_group, wait_for_sources=wait_for_sources):
+                for notice in result.notices:
+                    if notice.id == notice_id:
+                        return notice
         return None
 
     def _source_by_id(self, source_id: str) -> SourceConfig:

@@ -4,11 +4,11 @@ import json
 import tempfile
 import time
 import unittest
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor, wait
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from sakurano_line_notifier.web_catalog import CatalogService, CatalogError
 
@@ -122,6 +122,35 @@ class CatalogFreshnessTests(unittest.TestCase):
         results = self.service.get_many(source_id="all", refresh=True)
         self.assertEqual(submitted, ["one", "club", "other"])
         self.assertEqual([result.source.id for result in results], ["one", "other", "club"])
+
+    def test_cached_reader_does_not_wait_for_unrelated_pending_source(self):
+        original = self.service.get_source("one", "1年生")
+        root = original.source
+        related = replace(root, id="club", collection_id="club", related_collections=(root.collection_id,), collection_root=False)
+        self.service.sources = (root, related)
+        pending = Future()
+        self.service._submit_source = Mock(return_value=pending)
+        with patch("sakurano_line_notifier.web_catalog.wait", wraps=wait) as waiting:
+            notice = self.service.find_notice(original.notices[0].id, source_id="one", grade="1年生")
+        self.assertEqual(notice, original.notices[0])
+        waiting.assert_called_once()
+        self.assertEqual(waiting.call_args.kwargs["timeout"], 0)
+        self.assertFalse(pending.done())
+
+    def test_cold_reader_retains_bounded_collection_fallback(self):
+        original = self.service.get_source("one", "1年生")
+        self.service.get_many = Mock(side_effect=[[], [original]])
+        notice = self.service.find_notice(original.notices[0].id, source_id="one", grade="1年生")
+        self.assertEqual(notice, original.notices[0])
+        self.assertEqual([call.kwargs["wait_for_sources"] for call in self.service.get_many.call_args_list], [False, True])
+
+    def test_cached_reader_cannot_escape_selected_school(self):
+        original = self.service.get_source("one", "1年生")
+        other = replace(original.source, id="other", collection_id="other")
+        self.service.sources = (original.source, other)
+        empty = replace(original, source=other, notices=())
+        self.service._cache[(other.id, original.grade)] = (time.monotonic(), empty)
+        self.assertIsNone(self.service.find_notice(original.notices[0].id, source_id="other", grade="1年生"))
 
 
 if __name__ == "__main__":
