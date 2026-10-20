@@ -92,7 +92,7 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(coverage["issue_codes"], [])
         self.assertEqual(coverage["checked_at"], "")
 
-    def test_delay_warning_uses_same_45_minute_target_as_recovery(self):
+    def test_delay_warning_preserves_the_45_minute_target_and_actual_check_time(self):
         for minutes, expected in ((44, "fresh"), (45, "stale"), (89, "stale")):
             with self.subTest(minutes=minutes):
                 stamp = (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
@@ -101,14 +101,17 @@ class SnapshotTests(unittest.TestCase):
                 result = self.catalog.get_source("city")
                 self.assertEqual(result.coverage()["freshness_status"], expected)
                 self.assertEqual(result.scanned_at, stamp)
-                self.assertIn("実行が遅れる場合", result.coverage()["coverage_note"])
+                self.assertIn("確認日時が変わるまでは前回の情報", result.coverage()["coverage_note"])
 
-    def test_background_refresh_checks_watchdog_only_in_scheduled_mode(self):
+    def test_recovery_does_not_wait_for_the_school_pdf_refresh_loop(self):
         self.catalog.get_many = Mock(return_value=[self.result])
         self.catalog._dispatch_watchdog.check = Mock()
         with patch.object(self.catalog._refresh_stop, "wait", return_value=True):
             self.catalog._refresh_loop(900)
-        self.catalog._dispatch_watchdog.check.assert_called_once_with([self.result])
+        self.catalog._dispatch_watchdog.check.assert_not_called()
+        self.catalog.get_source = Mock(return_value=self.result)
+        self.catalog._check_collection_recovery()
+        self.catalog._dispatch_watchdog.check.assert_called_once_with([self.result], force=False)
         self.catalog._dispatch_watchdog.check.reset_mock()
         self.catalog._scheduled_collection = False
         with patch.object(self.catalog._refresh_stop, "wait", return_value=True):

@@ -103,7 +103,7 @@ railway domain
 
 도쿄 23구 전체를 한 번에 다 긁는 것으로 가장하지 않았습니다. 학교마다 CMS와 링크 형식이 달라, 실제 페이지·링크를 확인한 학교만 베타에 넣고 `sources.json`에 소스별 수집 방식을 명시합니다. 현재는 지인이 많은 무사시노시를 우선해 시립 초등학교 12곳과 학동 12개 학구를 등록했습니다. 새 학교를 추가할 때는 `id`, `name`, `ward`, `level`, `page_url` 또는 여러 페이지를 묶는 `page_urls`, `mode`를 넣고, 필요하면 `include_patterns`와 `exclude_patterns`를 조정합니다. HTML 뉴스형 학교는 `mode: "html_news"`를 사용합니다. 한 학교의 학교 홈페이지·学年だより·행사 페이지가 서로 분리되어 있다면 `page_urls`에 함께 넣어 같은 학교 피드로 합칩니다. 장기적으로는 동일한 스키마를 자치체 단위의 전국 소스 등록·검증 파이프라인으로 확장합니다.
 
-웹 베타는 5분 메모리 캐시와 영속 SQLite 공개자료 캐시(`WEB_CATALOG_CACHE_PATH`)를 함께 사용합니다. Railway에서는 `/data/catalog_cache.sqlite3`를 지정해 재배포 뒤에도 마지막으로 확인한 공개 공지를 먼저 보여줍니다. `collection_driver: server` 자료는 서버가 `WEB_CATALOG_REFRESH_INTERVAL_SECONDS`(기본 15분)마다 확인하며 `今すぐ更新`으로 다시 조회할 수 있습니다. `scheduled` 시청 자료는 아래 Actions 수집기가 30분 간격으로 **예약**되지만 실행 지연이 가능합니다. 버튼은 마지막 수집 결과를 읽으며, 45분 이상 경과하면 실제 확인 시각을 유지한 채 지연을 표시합니다. 여러 학교 조회는 `WEB_CATALOG_MAX_WAIT_SECONDS`(기본 12초) 안에 완료된 소스부터 부분 응답하며 늦은 소스는 공유 작업으로 캐시에 반영합니다. 같은 PDF 수집을 요청마다 중복 실행하지 않습니다.
+웹 베타는 5분 메모리 캐시와 영속 SQLite 공개자료 캐시(`WEB_CATALOG_CACHE_PATH`)를 함께 사용합니다. Railway에서는 `/data/catalog_cache.sqlite3`를 지정해 재배포 뒤에도 마지막으로 확인한 공개 공지를 먼저 보여줍니다. `collection_driver: server` 자료는 서버가 `WEB_CATALOG_REFRESH_INTERVAL_SECONDS`(기본 15분)마다 확인하며 `今すぐ更新`으로 다시 조회할 수 있습니다. `scheduled` 시청 자료는 아래 Actions 수집기가 30분 간격으로 예약됩니다. 복구 키가 설정되어 있으면 독립적인 1분 간격 감시가 마지막 확인 후 20분이 지난 소스의 재수집을 요청합니다. 갱신 버튼도 선택한 범위에 외부 소스가 있을 때 같은 수집기를 요청하며, 중복 요청은 전체 서버 기준 15분 간격으로 제한합니다. 확인 시각은 검증된 새 자료가 저장된 뒤에만 바뀌고, 45분 이상 경과하면 실제 확인 시각을 유지한 채 지연을 표시합니다. 여러 학교 조회는 `WEB_CATALOG_MAX_WAIT_SECONDS`(기본 12초) 안에 완료된 소스부터 부분 응답하며 늦은 소스는 공유 작업으로 캐시에 반영합니다. 같은 PDF 수집을 요청마다 중복 실행하지 않습니다.
 
 ### 학교 정보 혼입 방지와 운영 품질 검사
 
@@ -143,20 +143,22 @@ Railway 실행 환경에서는 무사시노시 공식 도메인이 HTTP 403을 �
 - Railway: 동일한 `CATALOG_SYNC_TOKEN`, `WEB_SCHEDULED_COLLECTION=true`, 영속 `WEB_CATALOG_CACHE_PATH` 설정. 비밀키는 클라이언트 코드·로그·저장소에 넣지 않습니다.
 - 레지스트리에서 `collection_driver: scheduled`인 21개 시청 소스만 전송합니다. 출처 설정 지문·허용 HTTPS 호스트·학년·개수·최대 2MB·본문 읽기 성공·최근 확인 시각을 검사합니다. 실패한 소스는 업로드하지 않고 다른 정상 소스는 계속 처리합니다.
 - 수신 API는 서버 간 Bearer 인증이 필수이고 브라우저 Origin 요청은 거부합니다. 확인 시각이 같거나 이전인 재전송은 덮어쓰지 않습니다. 디스크 저장을 확인한 뒤에만 성공 응답합니다.
-- 마지막 확인 후 90분 이상이면 지연 경고와 실제 확인 시각을 유지합니다. 최초 자료가 없으면 ‘자료 대기’ 경고를 표시합니다. 과거 캐시를 방금 수집한 정보처럼 표시하지 않습니다.
+- 마지막 확인 후 45분 이상이면 지연 경고와 실제 확인 시각을 유지합니다. 최초 자료가 없으면 ‘자료 대기’ 경고를 표시합니다. 과거 캐시를 방금 수집한 정보처럼 표시하지 않습니다.
 - 수집 토큰은 공개 공지 캐시 쓰기에만 사용하며 학부모 쿠키·알림 구독 DB를 읽거나 수정하지 않습니다. 키 교체 시 양쪽 Secrets를 함께 교체하고 Railway를 재배포합니다.
 
 #### 예약 지연 복구 감시 (선택 설정)
 
-GitHub 예약은 실행 시각을 보장하지 않으며 실제로 수 시간 지연된 사례가 있습니다. [GitHub 공식 안내](https://docs.github.com/en/actions/how-tos/troubleshoot-workflows)를 참고하세요. Railway의 백그라운드 갱신 루프에는 저장된 시청 자료가 45분 이상 오래되거나 없을 때 동일한 수집 workflow를 수동 이벤트로 요청하는 감시 기능이 있습니다. **아래 최소 권한 토큰을 등록해야 활성화되며, 미설정 상태에서는 기존 GitHub 예약만 동작합니다.**
+GitHub 예약은 실행 시각을 보장하지 않으며 실제로 수 시간 지연된 사례가 있습니다. [GitHub 공식 안내](https://docs.github.com/en/actions/how-tos/troubleshoot-workflows)를 참고하세요. Railway에는 학교 PDF/OCR 갱신과 독립적으로 실행되는 복구 감시가 있습니다. 1분마다 저장된 시청 자료를 확인하며, 마지막 확인 후 20분이 지났거나 자료가 없으면 동일한 수집 workflow를 수동 이벤트로 요청합니다. **아래 최소 권한 토큰을 등록해야 활성화되며, 미설정 상태에서는 기존 GitHub 예약만 동작합니다.**
 
 1. GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens에서 만료일을 지정하고 `otayori-desk` 저장소 **하나만** 선택합니다.
 2. Repository permissions의 **Actions: Read and write**만 추가합니다(Metadata read는 기본 권한). Contents write, 계정 전체 repo 권한은 주지 않습니다. [워크플로 실행 권한](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event)
 3. 토큰은 채팅·파일·명령행에 붙이지 말고 Railway `otayori-web`의 Variables에 `CATALOG_DISPATCH_TOKEN`으로 직접 등록하고 재배포합니다. 기존 `CATALOG_SYNC_TOKEN`과 서로 다른 토큰입니다.
-4. **단일 웹 인스턴스에서만** 활성화합니다. 성공·실패 모두 최소 30분 간격, 인증 실패는 6시간 간격으로 제한하고 고정 GitHub API 주소로만 보냅니다. 리다이렉트·환경 프록시는 사용하지 않으며 토큰/응답 본문은 로그에 남기지 않습니다.
+4. **단일 웹 인스턴스에서만** 활성화합니다. 자동·수동 요청은 동일한 스레드 안전 예약을 공유하며 성공·실패 모두 최소 15분 간격, 인증 실패는 6시간 간격으로 제한하고 고정 GitHub API 주소로만 보냅니다. 리다이렉트·환경 프록시는 사용하지 않으며 토큰/응답 본문은 로그에 남기지 않습니다.
 5. 실행 요청 성공은 수집 완료가 아닙니다. 검증된 스냅샷이 실제 저장된 경우에만 확인 시각이 바뀝니다. 배포 후 workflow 실행 기록, 21개 출처의 `checked_at`, `freshness_status`를 확인합니다. GitHub 자체 장애나 큐 지연까지 제거하는 기능은 아닙니다.
 
 예약 수집 모드에서 복구 토큰이 없거나 형식이 잘못되면 서버 시작 로그에 `catalog_recovery_disabled`가 한 번 기록됩니다. GitHub 예약이 꺼졌다는 뜻은 아니며, 지연 시 서버가 재실행을 요청하는 보완 경로만 비활성 상태입니다. 실제 값은 로그에 남기지 않습니다.
+
+운영 확인은 `/api/ready`와 `/api/collection/status`를 구분합니다. 전자는 서버·DB 준비 상태이고, 후자는 실제 저장된 외부 소스별 확인 시각·지연과 복구 감시 실행 여부·인증/네트워크 실패를 반환합니다. 복구 키 누락, 감시 중지, 지연 또는 복구 요청 실패는 후자에서 HTTP 503으로 보고합니다. 비밀키·응답 본문·보호자 정보를 반환하지 않습니다. 수동 갱신은 요청을 대기열에 넣은 동안 최대 120초만 진행 중으로 표시하며, 새 스냅샷 수신이나 요청 실패 이후 해제합니다. 브라우저는 기존 60초 제한 안에서 확인하고 열린 본문은 유지합니다. API `refresh_requested`는 버튼 요청 여부, `external_refresh_status`는 외부 수집 요청 결과입니다. `refreshed`는 거절·대기 중일 때 false이며, `complete`는 저장 자료의 수집 범위를 뜻합니다. 복구가 비활성·중지·실패한 경우 화면에 재확인 실패를, 재요청 제한 중에는 대기를 표시합니다. GitHub 자체 장애를 포함한 실제 수집 성공은 별도 확인해야 하므로 요청 수락을 갱신 완료로 표시하지 않습니다.
 
 화면에서는 `freshness_status`와 `issue_codes`로 갱신 지연·본문 판독 실패·조회 실패를 구분합니다. 긴 출처별 설명은 접힌 `収集範囲・確認状況` 안에 표시하며, 과거 자료 건수 한도만 도달한 경우는 오류 경고가 아닙니다. 실제 판독 실패와 원문 링크는 숨기지 않습니다.
 
@@ -333,7 +335,7 @@ python -m sakurano_line_notifier deliver
 
 전송이 완료되면 pending 메시지는 제거되고 해시와 전송 이력만 남습니다. 링크가 페이지에서 사라져도 과거 상태를 자동 삭제하지 않으므로, 문서가 다시 올라올 때 중복을 줄일 수 있습니다.
 
-이미지 스캔 PDF는 서버 내부의 Poppler·Tesseract 일본어 OCR로 읽습니다. Railway의 실제 빌더인 Railpack에 맞춰 `railpack.json`의 `deploy.aptPackages`로 `poppler-utils`, `tesseract-ocr`, `tesseract-ocr-jpn`을 런타임에 설치합니다([공식 설정](https://railpack.com/guides/installing-packages/)). 배포 후 `tesseract --list-langs`에 `jpn`이 있는지와 실제 PDF 수집을 확인합니다. 수집·OCR 과정에서 외부 번역/OCR 서비스로 문서를 전송하지 않습니다. 사용자가 외부 번역 링크를 누르면 해당 공개 본문만 Google로 전송됩니다. OCR은 페이지·이미지·CPU·시간 제한과 품질 검사를 적용하며, 지원 한계나 낮은 인식 품질은 실패로 남깁니다. OCR도 오독할 수 있으므로 날짜·준비물·금액은 원문 링크를 확인해야 합니다. 로컬 환경에서 일본어 언어팩이 없으면 경고가 표시되며 성공으로 가장하지 않습니다.
+이미지 스캔 PDF는 서버 내부의 Poppler·Tesseract 일본어 OCR로 읽습니다. Railway의 실제 빌더인 Railpack에 맞춰 `railpack.json`의 `deploy.aptPackages`로 `poppler-utils`, `poppler-data`, `fonts-noto-cjk`, `tesseract-ocr`, `tesseract-ocr-jpn`을 런타임에 설치합니다([공식 설정](https://railpack.com/guides/installing-packages/)). `poppler-data`는 CJK PDF의 문자 매핑에 필요하며([Debian](https://packages.debian.org/trixie/poppler-data)), 일본어 글꼴도 함께 공급합니다. 배포 후 `tesseract --list-langs`에 `jpn`이 있는지와 실제 PDF 수집을 확인합니다. 손상된 문자층은 페이지 전체를 다시 렌더링해 읽고, 글꼴·문자 매핑이 누락된 불완전 렌더링은 거부합니다. 낮은 신뢰도에서는 동일한 전체 이미지에 다른 레이아웃 판독을 한 번 적용하되, 기존 신뢰도 기준·인식 글자 수·높은 신뢰도 단어를 모두 보존해야 합니다. 수집·OCR 과정에서 외부 번역/OCR 서비스로 문서를 전송하지 않습니다. 사용자가 외부 번역 링크를 누르면 해당 공개 본문만 Google로 전송됩니다. OCR은 페이지·이미지·CPU·시간 제한과 품질 검사를 적용하며, 지원 한계나 낮은 인식 품질은 실패로 남깁니다. OCR도 오독할 수 있으므로 날짜·준비물·금액은 원문 링크를 확인해야 합니다. 로컬 환경에서 일본어 언어팩이 없으면 경고가 표시되며 성공으로 가장하지 않습니다.
 
 ## 테스트
 

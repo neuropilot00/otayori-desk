@@ -27,6 +27,17 @@ class WatchdogTests(unittest.TestCase):
         factory.assert_not_called()
 
     @patch("sakurano_line_notifier.catalog_watchdog.requests.Session")
+    def test_twenty_minute_refresh_target_precedes_the_forty_five_minute_stale_warning(self, factory):
+        factory.return_value.__enter__.return_value.post.return_value.status_code = 204
+        watchdog = self.watchdog()
+        self.assertEqual(watchdog.check([self.result(19)]), "fresh")
+        factory.assert_not_called()
+        self.assertEqual(watchdog.check([self.result(20)]), "dispatched")
+        self.assertEqual(watchdog.status()["last_result"], "accepted")
+        self.assertTrue(watchdog.status()["last_accepted_at"])
+        self.assertEqual(watchdog.stale_after_seconds, 45 * 60)
+
+    @patch("sakurano_line_notifier.catalog_watchdog.requests.Session")
     def test_delayed_dispatch_is_fixed_origin_bounded_and_never_advances_timestamp(self, factory):
         session = factory.return_value.__enter__.return_value
         session.post.return_value.status_code = 204

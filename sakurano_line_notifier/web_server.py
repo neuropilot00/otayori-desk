@@ -123,6 +123,10 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/health":
                 self._send_json({"ok": True, "service": "school-news-beta"})
                 return
+            if parsed.path == "/api/collection/status":
+                payload = self.server.catalog.collection_status()
+                self._send_json(payload, status=HTTPStatus.OK if payload["ok"] else HTTPStatus.SERVICE_UNAVAILABLE)
+                return
             if parsed.path == "/api/ready":
                 ready = self.server.catalog.storage_ready()
                 self._send_json({"ok": ready, "mode": "free_beta"}, status=HTTPStatus.OK if ready else HTTPStatus.SERVICE_UNAVAILABLE)
@@ -320,8 +324,11 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             feed_group=feed_group,
             source_group=source_group,
             refresh=refresh,
+            request_external_refresh=force_refresh,
         )
         notices = [notice.to_summary() for result in results for notice in result.notices]
+        external_statuses = {result.refresh_request_status for result in results if result.refresh_request_status}
+        external_status = next((status for status in ("failed", "disabled", "unavailable", "cooldown", "queued", "accepted") if status in external_statuses), "not_required")
         notices.sort(key=lambda notice: (notice["date_label"] != "更新資料", notice["date_label"], notice["source_name"]), reverse=True)
         warnings = [f"{result.source.name}: {warning}" for result in results for warning in result.warnings]
         checked_results = [result for result in results if result.source.coverage_kind != "reference"] or results
@@ -353,7 +360,9 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
             "warnings": warnings,
             "filters": {"source_id": source_id or "all", "level": level or "all", "ward": ward or "all", "grade": grade or "default", "feed": feed_group or "all", "group": source_group or "all"},
             "cache_ttl_seconds": self.server.catalog.cache_ttl_seconds,
-            "refreshed": force_refresh or refresh,
+            "refresh_requested": force_refresh,
+            "external_refresh_status": external_status,
+            "refreshed": bool(force_refresh and external_status == "not_required" and not warnings and not any(result.refreshing for result in results)),
             "coverage": [result.coverage() for result in results],
             "complete": not warnings,
             "refreshing": any(result.refreshing for result in results),

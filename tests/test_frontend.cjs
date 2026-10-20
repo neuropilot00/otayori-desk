@@ -992,6 +992,48 @@ test("partial extraction warnings alone never start a polling loop", async () =>
   assert.equal(app.get("refresh-button").disabled, false);
 });
 
+test("rejected external refreshes stay explicit in every language without polling or hiding cached notices", async () => {
+  for (const language of ["ja", "ko", "en", "zh"]) {
+    for (const status of ["disabled", "unavailable", "failed", "cooldown"]) {
+      const app = pollingFrontend(async () => ({ notices: [notice("cached")], complete: true, refreshing: false, external_refresh_status: status }));
+      app.state.language = language;
+      await app.loadNotices(true);
+      assert.equal(app.state.refreshStatus, status === "cooldown" ? "refreshDeferred" : "refreshError", `${language}:${status}`);
+      assert.equal(app.calls.length, 1);
+      assert.match(app.get("notice-list").innerHTML, /data-notice-id="cached"/);
+      assert.equal(app.get("refresh-button").disabled, false);
+      assert.equal(app.get("coverage-alert").hidden, false);
+      assert.equal(app.get("coverage-warnings").hidden, false);
+      assert.equal(app.get("filter-summary").attributes["data-refreshed-at"], undefined);
+      assert.doesNotMatch(app.get("coverage-alert").textContent, /coverage\./);
+      assert.doesNotMatch(app.get("coverage-warnings").innerHTML, /status\.refresh/);
+    }
+  }
+});
+
+test("a queued external job polls until a validated snapshot without mistaking acceptance for completion", async () => {
+  const app = pollingFrontend(async (number) => ({ notices: [notice("cached")], complete: true, refreshing: false, external_refresh_status: number === 1 ? "accepted" : "not_required" }));
+  const loading = app.loadNotices(true);
+  await flush();
+  assert.equal(app.state.refreshStatus, "refreshing");
+  assert.equal(app.calls.length, 1);
+  await app.timers.advance(2000);
+  await loading;
+  assert.equal(app.state.refreshStatus, null);
+  assert.equal(app.calls.length, 2);
+});
+
+test("an external refresh rejection remains visible when independent school polling completes", async () => {
+  const app = pollingFrontend(async (number) => ({ notices: [notice("cached")], complete: true, refreshing: number === 1, external_refresh_status: number === 1 ? "disabled" : "not_required" }));
+  const loading = app.loadNotices(true);
+  await flush();
+  await app.timers.advance(2000);
+  await loading;
+  assert.equal(app.state.refreshStatus, "refreshError");
+  assert.equal(app.calls.length, 2);
+  assert.equal(app.get("coverage-alert").hidden, false);
+});
+
 test("poll deadline aborts a slow GET, preserves cached notices and warnings, and leaves refresh enabled", async () => {
   const cached = { notices: [notice("cached")], refreshing: true, warnings: ["学校: 更新確認中"] };
   const app = pollingFrontend((number, url, options) => number === 1 ? Promise.resolve(cached) : new Promise((resolve, reject) => {

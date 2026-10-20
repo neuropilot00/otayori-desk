@@ -34,23 +34,30 @@ def native_reader(*texts: str) -> Mock:
 
 
 class PdfTextQualityTests(unittest.TestCase):
-    def test_actual_cmap_excerpts_cannot_count_as_readable_native_text(self):
+    def test_actual_cmap_excerpts_are_replaced_only_by_full_page_ocr(self):
         for text in (OONODEN, KYONAN):
             with self.subTest(text=text[:20]), patch("pypdf.PdfReader", return_value=native_reader(text)):
-                with patch.object(pdf_ocr, "extract_pdf_ocr_pages") as ocr, self.assertRaisesRegex(
-                    ExtractionError, "corrupted native text on page 1.*original PDF"
-                ):
-                    extract_document_text(b"%PDF-test")
-                ocr.assert_not_called()
+                with patch.object(pdf_ocr, "extract_pdf_ocr_pages", return_value={1: GOOD_TEXT}) as ocr:
+                    self.assertEqual(extract_document_text(b"%PDF-test"), GOOD_TEXT)
+                ocr.assert_called_once_with(b"%PDF-test", page_count=1, page_numbers=(1,), required_text_pages=(1,))
 
     def test_corrupted_middle_page_rejects_whole_document(self):
-        with patch("pypdf.PdfReader", return_value=native_reader(GOOD_TEXT, OONODEN, "Final readable page")), self.assertRaisesRegex(
-            ExtractionError, "corrupted native text on page 2"
-        ):
+        with patch("pypdf.PdfReader", return_value=native_reader(GOOD_TEXT, OONODEN, "Final readable page")), patch.object(
+            pdf_ocr, "extract_pdf_ocr_pages", side_effect=pdf_ocr.PdfOcrError("low OCR quality on page 2")
+        ), self.assertRaisesRegex(ExtractionError, "low OCR quality on page 2"):
             extract_document_text(b"%PDF-test")
 
+    def test_corrupted_middle_page_recovery_preserves_native_neighbors(self):
+        with patch("pypdf.PdfReader", return_value=native_reader(GOOD_TEXT, OONODEN, "Final readable page")), patch.object(
+            pdf_ocr, "extract_pdf_ocr_pages", return_value={2: "復元された本文"}
+        ) as ocr:
+            self.assertEqual(extract_document_text(b"%PDF-test"), GOOD_TEXT + "\n復元された本文\nFinal readable page")
+        ocr.assert_called_once_with(b"%PDF-test", page_count=3, page_numbers=(2,), required_text_pages=(2,))
+
     def test_readable_header_does_not_hide_corrupted_body_over_200_characters(self):
-        with patch("pypdf.PdfReader", return_value=native_reader(GOOD_TEXT * 4 + "\n" + KYONAN)), self.assertRaisesRegex(
+        with patch("pypdf.PdfReader", return_value=native_reader(GOOD_TEXT * 4 + "\n" + KYONAN)), patch.object(
+            pdf_ocr, "extract_pdf_ocr_pages", return_value={1: ""}
+        ), self.assertRaisesRegex(
             ExtractionError, "corrupted native text on page 1"
         ):
             extract_document_text(b"%PDF-test")
@@ -88,7 +95,9 @@ class PdfTextQualityTests(unittest.TestCase):
 
     def test_repeated_unmapped_values_fail_without_language_blacklist(self):
         for value in ("\ufffd", "\u0378", "\x01", "\x00"):
-            with self.subTest(value=value), patch("pypdf.PdfReader", return_value=native_reader(GOOD_TEXT + value * 12)), self.assertRaisesRegex(
+            with self.subTest(value=value), patch("pypdf.PdfReader", return_value=native_reader(GOOD_TEXT + value * 12)), patch.object(
+                pdf_ocr, "extract_pdf_ocr_pages", return_value={1: GOOD_TEXT + value * 12}
+            ), self.assertRaisesRegex(
                 ExtractionError, "corrupted native text"
             ):
                 extract_document_text(b"%PDF-test")
@@ -99,11 +108,18 @@ class PdfTextQualityTests(unittest.TestCase):
             page.extract_text.side_effect = [plain, layout]
             with self.subTest(plain=plain[:20]), patch(
                 "pypdf.PdfReader", return_value=Mock(is_encrypted=False, pages=[page])
-            ), patch.object(pdf_ocr, "extract_pdf_ocr_pages") as ocr, self.assertRaisesRegex(
-                ExtractionError, "corrupted native text on page 1"
+            ), patch.object(pdf_ocr, "extract_pdf_ocr_pages", return_value={1: GOOD_TEXT}) as ocr:
+                self.assertEqual(extract_document_text(b"%PDF-test"), GOOD_TEXT)
+            ocr.assert_called_once()
+
+    def test_corrupted_native_text_cannot_accept_partial_ocr_selection(self):
+        for recovered in ({}, {1: GOOD_TEXT}, {2: GOOD_TEXT, 3: GOOD_TEXT}):
+            with self.subTest(recovered=recovered), patch(
+                "pypdf.PdfReader", return_value=native_reader(OONODEN, KYONAN)
+            ), patch.object(pdf_ocr, "extract_pdf_ocr_pages", return_value=recovered), self.assertRaisesRegex(
+                ExtractionError, "incomplete page selection"
             ):
                 extract_document_text(b"%PDF-test")
-            ocr.assert_not_called()
 
     def test_pdf_guard_does_not_change_html_extraction(self):
         self.assertEqual(extract_document_text(("<p>" + "\ufffd" * 12 + "</p>").encode()), "\ufffd" * 12)
@@ -124,9 +140,9 @@ class PdfTextQualityTests(unittest.TestCase):
         service.settings = SimpleNamespace(request_timeout_seconds=5, max_document_bytes=10_000_000, user_agent="test")
         with patch("sakurano_line_notifier.web_catalog.HttpFetcher", return_value=fetcher), patch(
             "pypdf.PdfReader", return_value=native_reader(GOOD_TEXT, OONODEN)
-        ), patch.object(pdf_ocr, "extract_pdf_ocr_pages") as ocr:
+        ), patch.object(pdf_ocr, "extract_pdf_ocr_pages", side_effect=pdf_ocr.PdfOcrError("low OCR quality on page 2")) as ocr:
             result = service._scan_source(source, "全学年")
-        ocr.assert_not_called()
+        ocr.assert_called_once_with(b"%PDF-test", page_count=2, page_numbers=(2,), required_text_pages=(2,))
         self.assertEqual(len(result.notices), 1)
         notice = result.notices[0]
         self.assertEqual(notice.url, url)
@@ -135,7 +151,7 @@ class PdfTextQualityTests(unittest.TestCase):
         self.assertEqual((notice.date_label, notice.date_kind), ("更新資料", "unknown"))
         self.assertEqual((notice.published_label, notice.event_date, notice.deadline_date), ("", "", ""))
         self.assertNotIn(OONODEN, notice.text)
-        self.assertIn("corrupted native text on page 2", " ".join(result.warnings))
+        self.assertIn("low OCR quality on page 2", " ".join(result.warnings))
 
 
 if __name__ == "__main__":

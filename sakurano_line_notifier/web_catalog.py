@@ -190,6 +190,7 @@ class CatalogResult:
     refreshing: bool = False
     freshness_status: str = "fresh"
     audience_excluded_count: int = 0
+    refresh_request_status: str | None = None
 
     def coverage(self) -> dict[str, Any]:
         freshness = self.freshness_status if self.scanned_at else ("pending" if self.refreshing or self.freshness_status == "pending" else "unknown")
@@ -215,7 +216,7 @@ class CatalogResult:
             "coverage_kind": self.source.coverage_kind,
             "content_kind": self.source.content_kind,
             "coverage_note": self.source.coverage_note + (
-                " 30分間隔で収集を予約しています（実行が遅れる場合があります）。更新ボタンは保存済みデータを確認します。確認日時をご覧ください。"
+                " 定期収集の結果を表示します。更新要求後も確認日時が変わるまでは前回の情報です。"
                 if self.source.collection_driver == "scheduled" else ""),
             "notice_count": len(self.notices),
             "readable_count": sum(notice.extraction_status == "ok" for notice in self.notices),
@@ -225,6 +226,7 @@ class CatalogResult:
             "refreshing": self.refreshing,
             "collection_driver": self.source.collection_driver,
             "freshness_status": freshness,
+            "refresh_request_status": self.refresh_request_status,
             "issue_codes": issues,
         }
 
@@ -886,6 +888,12 @@ class CatalogService:
         self._inflight: dict[tuple[str, str], Future[CatalogResult]] = {}
         self._refresh_stop = threading.Event()
         self._refresh_thread: threading.Thread | None = None
+        self._recovery_thread: threading.Thread | None = None
+        self._recovery_wake = threading.Event()
+        self._recovery_force = False
+        self._scheduled_pending_since: datetime | None = None
+        self._scheduled_pending_until = 0.0
+        self._scheduled_request_status: str | None = None
 
     def source_options(self) -> list[dict[str, Any]]:
         return [source.to_dict() for source in self.sources if source.enabled and source.collection_root]
@@ -909,14 +917,17 @@ class CatalogService:
         """Keep the public catalog warm without making parents wait for upstream PDFs."""
         interval = max(60.0, float(interval_seconds))
         with self._lock:
-            if self._refresh_thread is not None:
+            if any(thread is not None and thread.is_alive() for thread in (self._refresh_thread, self._recovery_thread)):
                 return
+            self._refresh_thread = None
+            self._recovery_thread = None
             if self._scheduled_collection and not self._dispatch_watchdog.enabled:
                 logging.getLogger(__name__).warning(
                     "catalog_recovery_disabled reason=missing_or_invalid_CATALOG_DISPATCH_TOKEN "
                     "scheduled_collection=external_only"
                 )
             self._refresh_stop.clear()
+            self._recovery_wake.clear()
             self._refresh_thread = threading.Thread(
                 target=self._refresh_loop,
                 args=(interval,),
@@ -924,13 +935,22 @@ class CatalogService:
                 daemon=True,
             )
             self._refresh_thread.start()
+            if self._scheduled_collection and self._dispatch_watchdog.enabled:
+                self._recovery_thread = threading.Thread(target=self._recovery_loop, name="catalog-recovery", daemon=True)
+                self._recovery_thread.start()
 
     def stop_background_refresh(self) -> None:
-        self._refresh_stop.set()
-        thread = self._refresh_thread
-        if thread is not None:
-            thread.join(timeout=2)
-        self._refresh_thread = None
+        with self._lock:
+            self._refresh_stop.set()
+            self._recovery_wake.set()
+            threads = (self._refresh_thread, self._recovery_thread)
+        for thread in threads:
+            if thread is not None:
+                thread.join(timeout=2)
+        with self._lock:
+            for name, thread in zip(("_refresh_thread", "_recovery_thread"), threads):
+                if getattr(self, name) is thread and (thread is None or not thread.is_alive()):
+                    setattr(self, name, None)
 
     def close(self) -> None:
         self.stop_background_refresh()
@@ -940,13 +960,106 @@ class CatalogService:
         while not self._refresh_stop.is_set():
             try:
                 results = self.get_many(source_id="all", refresh=True)
-                if self._scheduled_collection:
-                    self._dispatch_watchdog.check(results)
             except Exception as exc:
                 # A single source must not stop the catalog refresh loop.
                 logging.getLogger(__name__).warning("catalog_refresh_failed type=%s", type(exc).__name__)
             if self._refresh_stop.wait(interval_seconds):
                 return
+
+    def _recovery_loop(self) -> None:
+        # Do not queue recovery behind school PDF/OCR work or wait another
+        # full 15-minute scan interval before noticing an external delay.
+        while not self._refresh_stop.is_set():
+            try:
+                self._check_collection_recovery()
+            except Exception as exc:
+                logging.getLogger(__name__).warning("catalog_recovery_failed type=%s", type(exc).__name__)
+            self._recovery_wake.wait(60)
+            self._recovery_wake.clear()
+
+    def _check_collection_recovery(self) -> str:
+        if not self._scheduled_collection:
+            return "not_required"
+        with self._lock:
+            force, self._recovery_force = self._recovery_force, False
+        results = [self.get_source(source.id, source.default_grade) for source in self.sources
+                   if source.enabled and source.collection_driver == "scheduled"]
+        outcome = self._dispatch_watchdog.check(results, force=force)
+        with self._lock:
+            if outcome == "dispatched":
+                # A button may have queued a force while this request was in
+                # flight. This accepted job covers it; do not dispatch twice
+                # or clear its pending state on the next cooldown tick.
+                self._recovery_force = False
+                if self._scheduled_pending_since is None or time.monotonic() >= self._scheduled_pending_until:
+                    self._scheduled_pending_since = datetime.now(timezone.utc)
+                    self._scheduled_pending_until = time.monotonic() + 120
+                self._scheduled_request_status = "accepted"
+            elif outcome == "failed":
+                self._recovery_force = False
+                if self._scheduled_pending_since and time.monotonic() < self._scheduled_pending_until:
+                    self._scheduled_request_status = "failed"
+            elif force and outcome in {"cooldown", "disabled"}:
+                if not (outcome == "cooldown" and self._scheduled_request_status == "accepted" and time.monotonic() < self._scheduled_pending_until):
+                    self._scheduled_request_status = outcome
+        return outcome
+
+    def request_scheduled_refresh(self, source_ids: Iterable[str]) -> str:
+        selected = set(source_ids)
+        if not self._scheduled_collection or not any(source.enabled and source.id in selected and source.collection_driver == "scheduled" for source in self.sources):
+            return "not_required"
+        if not self._dispatch_watchdog.enabled:
+            return "disabled"
+        if self._refresh_stop.is_set() or self._recovery_thread is None or not self._recovery_thread.is_alive():
+            return "unavailable"
+        status = self._dispatch_watchdog.status()
+        with self._lock:
+            if self._scheduled_pending_since and self._scheduled_request_status in {"queued", "accepted"} and time.monotonic() < self._scheduled_pending_until:
+                return "queued"
+            if status["retry_after_seconds"] > 0:
+                return "failed" if status["last_result"] in {"authentication_failed", "network_failed", "http_failed"} else "cooldown"
+            self._recovery_force = True
+            self._scheduled_pending_since = datetime.now(timezone.utc)
+            self._scheduled_pending_until = time.monotonic() + 120
+            self._scheduled_request_status = "queued"
+            self._recovery_wake.set()
+        return "queued"
+
+    def _scheduled_refreshing(self, scanned_at: str) -> bool:
+        return self._scheduled_refresh_status(scanned_at) in {"queued", "accepted"}
+
+    def _scheduled_refresh_status(self, scanned_at: str) -> str | None:
+        with self._lock:
+            since = self._scheduled_pending_since
+            if since is None or time.monotonic() >= self._scheduled_pending_until:
+                return None
+            status = self._scheduled_request_status
+        try:
+            return status if datetime.fromisoformat(scanned_at) < since else None
+        except (ValueError, TypeError):
+            return status
+
+    def collection_status(self) -> dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        rows = []
+        for source in self.sources:
+            if not source.enabled or source.collection_driver != "scheduled":
+                continue
+            cached = self._last_cached(source, source.default_grade)
+            checked = cached[1].scanned_at if cached else ""
+            try:
+                age = max(0, (now - datetime.fromisoformat(checked)).total_seconds())
+            except (ValueError, TypeError):
+                age = None
+            rows.append({"source_id": source.id, "checked_at": checked, "age_seconds": round(age, 1) if age is not None else None,
+                         "stale": age is None or age >= CatalogDispatchWatchdog.stale_after_seconds})
+        recovery = self._dispatch_watchdog.status()
+        recovery["running"] = not self._refresh_stop.is_set() and self._recovery_thread is not None and self._recovery_thread.is_alive()
+        delayed = sum(row["stale"] for row in rows)
+        operational = recovery["enabled"] and recovery["running"] and recovery["last_result"] not in {"authentication_failed", "network_failed", "http_failed"}
+        return {"ok": not delayed and (not self._scheduled_collection or not rows or operational),
+                "scheduled_mode": self._scheduled_collection, "scheduled_sources": len(rows),
+                "delayed_sources": delayed, "recovery": recovery, "sources": rows}
 
     def get_source(self, source_id: str, grade: str | None = None, refresh: bool = False) -> CatalogResult:
         source = self._source_by_id(source_id)
@@ -955,12 +1068,12 @@ class CatalogService:
         cached = self._last_cached(source, effective_grade)
         if self._scheduled_collection and source.collection_driver == "scheduled":
             if not cached:
-                return CatalogResult(source, effective_grade, "", (), ("定期収集の初回データを待っています。公式ページをご確認ください。",), freshness_status="pending")
+                return CatalogResult(source, effective_grade, "", (), ("定期収集の初回データを待っています。公式ページをご確認ください。",), freshness_status="pending", refreshing=self._scheduled_refreshing(""), refresh_request_status=self._scheduled_refresh_status(""))
             result = cached[1]
             age = (datetime.now(timezone.utc) - datetime.fromisoformat(result.scanned_at)).total_seconds()
             if age >= CatalogDispatchWatchdog.stale_after_seconds:
-                return replace(result, warnings=("定期収集が遅れています。前回確認した情報です。公式ページもご確認ください。",), freshness_status="stale")
-            return result
+                return replace(result, warnings=("定期収集が遅れています。前回確認した情報です。公式ページもご確認ください。",), freshness_status="stale", refreshing=self._scheduled_refreshing(result.scanned_at), refresh_request_status=self._scheduled_refresh_status(result.scanned_at))
+            return replace(result, refreshing=self._scheduled_refreshing(result.scanned_at), refresh_request_status=self._scheduled_refresh_status(result.scanned_at))
         if not refresh and cached and time.monotonic() - cached[0] < self._cache_ttl_seconds:
             return cached[1]
         try:
@@ -1015,6 +1128,7 @@ class CatalogService:
         feed_group: str | None = None,
         source_group: str | None = None,
         refresh: bool = False,
+        request_external_refresh: bool = False,
     ) -> list[CatalogResult]:
         selected = [source for source in self.sources if source.enabled]
         requested = None
@@ -1040,6 +1154,7 @@ class CatalogService:
             selected = [source for source in selected if source.source_group == source_group]
         if not selected:
             raise CatalogError("no enabled source matches the requested filters")
+        external_status = self.request_scheduled_refresh(source.id for source in selected) if request_external_refresh else "not_required"
         # Cold-start background work must not put the default family's related
         # pages behind every other school's PDFs. Return order remains unchanged.
         default_collection = next((source.collection_id for source in self.sources if source.enabled and source.collection_root), "")
@@ -1077,6 +1192,8 @@ class CatalogService:
         target_grade = grade or (requested.default_grade if requested else None)
         scoped = []
         for result in ordered:
+            if external_status != "not_required" and result.source.collection_driver == "scheduled":
+                result = replace(result, refresh_request_status=external_status)
             if result.source.source_group == "school":
                 scoped.append(result)
                 continue

@@ -19,6 +19,7 @@ const REFRESH_POLL_TIMEOUT_MS = 60000;
 
 const I18N = {
   ja: {
+    "status.refreshDeferred": "外部情報は前回の確認結果です。少し待ってから再度更新してください。", "coverage.refreshDeferred": "外部情報の更新待ち",
     "kind.gakudo_admissions": "入会・制度案内", "kind.gakudo_facility": "学童の施設案内", "kind.asobee_reference": "あそべえの利用案内", "kind.asobee_letter": "あそべえだより", "kind.gakudo_daily": "学童の生活連絡",
     "reference.note": "入会・制度・施設などの参考資料です。日々の連絡・新着通知の対象ではありません。",
     "afterSchool.notCollected": "学童の生活連絡：未収集", "afterSchool.registered": "学童の生活連絡：収集対象に登録",
@@ -46,6 +47,7 @@ const I18N = {
     "kind.grade": "学年だより", "kind.school": "学校だより", "kind.afterSchool": "学童クラブ", "kind.city": "市・教育委員会", "kind.related": "関連資料", "category.supplies": "持ち物・準備", "category.submission": "提出物・締切", "category.events": "行事・予定", "category.parent": "保護者への連絡", "category.school": "学校全体への連絡", "category.study": "学習予定", "notifications.unavailable": "この公開ベータでは通知設定を準備中です。", "notifications.permission": "ブラウザの通知を許可してください。", "notifications.ready": "この条件の新着を通知します。", "notifications.enabled": "通知設定済み", "notifications.error": "通知を設定できませんでした。",
   },
   ko: {
+    "status.refreshDeferred": "외부 자료는 이전 확인 결과입니다. 잠시 후 다시 갱신해 주세요.", "coverage.refreshDeferred": "외부 자료 갱신 대기",
     "kind.gakudo_admissions": "입회·제도 안내", "kind.gakudo_facility": "학동 시설 안내", "kind.asobee_reference": "아소베에 이용 안내", "kind.asobee_letter": "아소베에 소식지", "kind.gakudo_daily": "학동 생활연락",
     "reference.note": "입회·제도·시설 등의 참고자료입니다. 일상 연락이나 새 소식 알림 대상이 아닙니다.",
     "afterSchool.notCollected": "학동 생활연락: 미수집", "afterSchool.registered": "학동 생활연락: 수집 대상에 등록",
@@ -66,6 +68,7 @@ const I18N = {
     "status.checking": "학교 페이지를 확인하고 있습니다.", "status.loading": "학교 페이지 확인 중…", "empty.title": "표시할 소식이 없습니다", "empty.body": "필터를 바꾸거나 다시 갱신해 주세요.", "detail.eyebrow": "원문 우선", "detail.placeholderTitle": "소식을 선택하면 원문이 여기에 표시됩니다.", "detail.placeholderBody": "요약뿐 아니라 분류된 내용과 일본어 원문·공식 링크를 함께 확인할 수 있습니다.", "detail.original": "일본어 원문", "detail.openOriginal": "공식 원문 열기 ↗", "detail.loading": "본문을 불러오는 중…", "detail.errorEyebrow": "상세 오류", "detail.errorTitle": "원문을 불러오지 못했습니다.", "card.original": "원문 ↗", "common.items": "건", "common.published": "게시", "common.unknownDate": "날짜 미확인", "common.latest": "최신", "archive.past": "지난 소식", "archive.none": "지난 소식이 없습니다", "summary.notices": "학교·생활 소식", "summary.events": "이벤트", "summary.noData": "표시할 정보가 없습니다", "summary.warning": " · 일부 자료 확인 경고 ", "summary.warningSuffix": "건", "summary.all": "전체", "summary.archiveSuffix": ".", "kind.grade": "학년 소식", "kind.school": "학교 소식", "kind.afterSchool": "학동 클럽", "kind.city": "시·교육위원회", "kind.related": "관련 자료", "category.supplies": "준비물", "category.submission": "제출물·마감", "category.events": "행사·일정", "category.parent": "보호자 안내", "category.school": "학교 전체 안내", "category.study": "학습 일정",
   },
   en: {
+    "status.refreshDeferred": "External information is from the previous check. Please wait before refreshing again.", "coverage.refreshDeferred": "External update pending",
     "kind.gakudo_admissions": "Admissions & programs", "kind.gakudo_facility": "After-school club facilities", "kind.asobee_reference": "Asobee usage guide", "kind.asobee_letter": "Asobee newsletter", "kind.gakudo_daily": "Daily after-school notices",
     "reference.note": "Reference information about admissions, programs and facilities. These are not daily notices and do not trigger new-update notifications.",
     "afterSchool.notCollected": "Daily after-school notices: Not collected", "afterSchool.registered": "Daily after-school notices: Registered for collection",
@@ -81,6 +84,7 @@ const I18N = {
     "page.title": "Otayori desk — school updates beta", "brand.subtitle": "Tokyo school notes / beta", "status.public": "Checking public pages", "status.errorPrefix": "Could not check: ", "language.label": "Language", "theme.toggle": "Change theme", "detail.view": "View details", "hero.eyebrow": "Parent beta · public sources", "hero.title": "School updates,<br><em>all in one place</em>.", "hero.lede": "See school letters, grade updates, and event information together without searching each school page.", "hero.note": "Choose your child's school and grade to show only relevant updates.", "metrics.schools": "Registered schools", "metrics.schoolsFoot": "Elementary · middle · high", "metrics.notices": "Shown now", "metrics.noticesFoot": "Based on public originals", "metrics.wards": "Areas", "metrics.wardsFoot": "Registry ready for expansion", "metrics.scanned": "Last checked", "metrics.scannedFoot": "5-min cache · refresh anytime", "workspace.eyebrow": "My child's school desk", "workspace.title": "Updates to check today", "actions.refresh": "Refresh now", "actions.notifications": "Get notifications", "feeds.notices": "School & daily life", "feeds.events": "Events", "groups.school": "School", "groups.municipality": "Musashino City / Board of Education", "groups.afterSchool": "After-school & Asobee", "filters.change": "Change school / grade", "filters.school": "School", "filters.allSchools": "All schools", "filters.group": "Source", "filters.allGroups": "All sources", "filters.level": "School type", "filters.all": "All", "filters.ward": "Area", "filters.allAreas": "All areas", "filters.grade": "Grade", "filters.nearby": "Find nearby schools", "filters.map": "Open map ↗", "levels.elementary": "Elementary", "levels.middle": "Middle", "levels.high": "High school", "grades.one": "Grade 1", "grades.two": "Grade 2", "grades.three": "Grade 3", "grades.four": "Grade 4", "grades.five": "Grade 5", "grades.six": "Grade 6", "grades.all": "All grades", "status.checking": "Checking school pages.", "status.loading": "Checking school pages…", "empty.title": "No updates to show", "empty.body": "Change a filter or refresh again.", "detail.eyebrow": "Original first", "detail.placeholderTitle": "Select an update to see the original here.", "detail.placeholderBody": "Review categorized items together with the Japanese original and official link.", "detail.original": "Japanese original", "detail.openOriginal": "Open official original ↗", "detail.loading": "Loading the original…", "detail.errorEyebrow": "Detail error", "detail.errorTitle": "Could not load the original.", "card.original": "Original ↗", "common.items": " items", "common.published": "Published", "common.unknownDate": "Date unknown", "common.latest": "LATEST", "archive.past": "Past updates", "archive.none": "No past updates", "summary.notices": "School & daily life", "summary.events": "Events", "summary.noData": "No information to show", "summary.warning": " · source warnings: ", "summary.warningSuffix": "", "summary.all": "All ", "summary.archiveSuffix": ".", "kind.grade": "Grade letter", "kind.school": "School letter", "kind.afterSchool": "After-school care", "kind.city": "City / board", "kind.related": "Related", "category.supplies": "What to bring", "category.submission": "Submissions & deadlines", "category.events": "Events & schedule", "category.parent": "For parents", "category.school": "School-wide notice", "category.study": "Study schedule",
   },
   zh: {
+    "status.refreshDeferred": "外部信息仍为上次确认结果，请稍后再次刷新。", "coverage.refreshDeferred": "等待外部信息更新",
     "kind.gakudo_admissions": "入会·制度介绍", "kind.gakudo_facility": "课后托管设施介绍", "kind.asobee_reference": "Asobee使用指南", "kind.asobee_letter": "Asobee通讯", "kind.gakudo_daily": "课后托管日常通知",
     "reference.note": "入会、制度及设施等参考资料，不属于日常通知，也不在新消息推送范围内。",
     "afterSchool.notCollected": "课后托管日常通知：未收集", "afterSchool.registered": "课后托管日常通知：已登记为收集对象",
@@ -516,7 +520,7 @@ function renderCoverage(payload) {
   warnings.filter((warning) => !warning.source).forEach((warning) => warning.issues.forEach(addIssue));
   if ((payloadRefreshing(payload) || state.refreshStatus === "refreshing") && !counts.has("refreshing")) counts.set("refreshing", 0);
   if (!counts.size && payload.complete === false) counts.set("unknown", 0);
-  if (["refreshTimeout", "refreshError"].includes(state.refreshStatus)) {
+  if (["refreshTimeout", "refreshError", "refreshDeferred"].includes(state.refreshStatus)) {
     counts.delete("refreshing");
     counts.set(state.refreshStatus, 0);
   }
@@ -554,7 +558,7 @@ function renderCoverage(payload) {
       <small>${escapeHtml(t("coverage.checkedAt"))} ${escapeHtml(checkedAt)}</small></li>`;
   }).join("") || `<li>${escapeHtml(t("coverage.unknown"))}</li>`;
   $("coverage-warnings").className = "coverage-note coverage-status";
-  const refreshMessage = ["refreshTimeout", "refreshError"].includes(state.refreshStatus) ? `<li>${escapeHtml(t(`status.${state.refreshStatus}`))}</li>` : "";
+  const refreshMessage = ["refreshTimeout", "refreshError", "refreshDeferred"].includes(state.refreshStatus) ? `<li>${escapeHtml(t(`status.${state.refreshStatus}`))}</li>` : "";
   $("coverage-warnings").innerHTML = warnings.map(({ message, issues }) => `<li lang="ja"><span class="coverage-status ${coverageIssueClass(issues.find((issue) => ["unavailable", "extraction", "collection"].includes(issue)) || issues[0])}">${escapeHtml(message)}</span></li>`).join("") + refreshMessage;
   $("coverage-warnings").hidden = !warnings.length && !refreshMessage;
 }
@@ -803,7 +807,14 @@ async function selectNotice(id, { showInline = true } = {}) {
 }
 
 function payloadRefreshing(payload) {
-  return payload.refreshing === true || payload.coverage?.some((source) => source.refreshing === true || source.issue_codes?.includes("refreshing"));
+  return ["queued", "accepted"].includes(payload.external_refresh_status) || payload.refreshing === true || payload.coverage?.some((source) => source.refreshing === true || source.issue_codes?.includes("refreshing"));
+}
+
+function refreshStatusFor(payload, previousRejection = null) {
+  const external = previousRejection || payload.external_refresh_status;
+  if (["disabled", "unavailable", "failed"].includes(external)) return "refreshError";
+  if (external === "cooldown") return "refreshDeferred";
+  return payloadRefreshing(payload) ? "refreshing" : null;
 }
 
 function waitForRefreshPoll(signal) {
@@ -845,7 +856,8 @@ async function loadNotices(refresh = false) {
     const options = refresh ? { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}", signal: controller.signal } : { signal: controller.signal };
     let payload = await api(path, options);
     if (requestVersion !== state.requestVersion || controller.signal.aborted) return;
-    state.refreshStatus = payloadRefreshing(payload) ? "refreshing" : null;
+    const rejectedExternalStatus = ["disabled", "unavailable", "failed", "cooldown"].includes(payload.external_refresh_status) ? payload.external_refresh_status : null;
+    state.refreshStatus = refreshStatusFor(payload, rejectedExternalStatus);
     renderNotices(payload, { showInline: refresh && document.querySelectorAll(".notice-card.expanded").length > 0, preserveUnchanged: refresh });
     setLoading(false);
     if (payloadRefreshing(payload)) {
@@ -856,11 +868,11 @@ async function loadNotices(refresh = false) {
         await waitForRefreshPoll(controller.signal);
         payload = await api(getPath, { signal: controller.signal });
         if (requestVersion !== state.requestVersion || controller.signal.aborted) return;
-        state.refreshStatus = payloadRefreshing(payload) ? "refreshing" : null;
+        state.refreshStatus = refreshStatusFor(payload, rejectedExternalStatus);
         renderNotices(payload, { showInline: document.querySelectorAll(".notice-card.expanded").length > 0, preserveUnchanged: true });
       }
     }
-    if (refresh) {
+    if (refresh && !["refreshError", "refreshDeferred", "refreshTimeout"].includes(state.refreshStatus)) {
       $("filter-summary").setAttribute("data-refreshed-at", payload.scanned_at || "");
     }
   } catch (error) {

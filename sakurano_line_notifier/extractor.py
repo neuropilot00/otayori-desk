@@ -186,6 +186,7 @@ def extract_document_text(payload: bytes, content_type: str = "", url: str = "")
             raise ExtractionError("encrypted PDFs or PDFs over 50 pages are not supported")
         pages = []
         unread_pages = []
+        corrupted_pages = []
         characters = 0
         for number, page in enumerate(reader.pages, 1):
             plain_text = page.extract_text() or ""
@@ -196,12 +197,13 @@ def extract_document_text(payload: bytes, content_type: str = "", url: str = "")
             if characters > MAX_TEXT_CHARACTERS:
                 raise ExtractionError("PDF text exceeds safety limit")
             if _has_corrupted_native_text(plain_text) or (text != plain_text and _has_corrupted_native_text(text)):
-                # Broken CMaps can also produce incomplete OCR rasters when
-                # the renderer lacks the font mapping. Fail the whole PDF;
-                # neither surviving glyphs nor a partial page establish text.
-                raise ExtractionError(f"PDF has corrupted native text on page {number}; consult the original PDF")
+                # The native mapping is unusable, but the visible glyphs can
+                # still be intact. Read the entire rendered page, never the
+                # surviving native characters. The renderer must fail closed
+                # on missing fonts/CMaps (including an apparently white page).
+                corrupted_pages.append(number)
             pages.append(text)
-            if _page_needs_ocr(page, text):
+            if number in corrupted_pages or _page_needs_ocr(page, text):
                 unread_pages.append(number)
     except ExtractionError:
         raise
@@ -209,9 +211,15 @@ def extract_document_text(payload: bytes, content_type: str = "", url: str = "")
         raise ExtractionError(f"could not extract PDF text: {url}") from exc
     if unread_pages:
         try:
-            recovered = extract_pdf_ocr_pages(payload, page_count=len(pages), page_numbers=tuple(unread_pages))
+            options = {"required_text_pages": tuple(corrupted_pages)} if corrupted_pages else {}
+            recovered = extract_pdf_ocr_pages(payload, page_count=len(pages), page_numbers=tuple(unread_pages), **options)
         except PdfOcrError as exc:
             raise ExtractionError(f"PDF OCR failed: {exc}: {url}") from exc
+        if set(recovered) != set(unread_pages):
+            raise ExtractionError("PDF OCR returned an incomplete page selection")
+        for number in corrupted_pages:
+            if not clean_text_lines(recovered[number]) or _has_corrupted_native_text(recovered[number]):
+                raise ExtractionError(f"PDF has corrupted native text on page {number}; OCR could not recover it; consult the original PDF")
         for number, recovered_text in recovered.items():
             pages[number - 1] = recovered_text
     text = "\n".join(pages)

@@ -19,7 +19,7 @@ import sys
 import tempfile
 import threading
 import time
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 
 MAX_PDF_BYTES = 10_000_000
 MAX_PDF_PAGES = 50
@@ -43,7 +43,7 @@ _JAPANESE = re.compile(r"[\u3041-\u3096\u30a1-\u30fa\u3400-\u4dbf\u4e00-\u9fff]"
 _CJK_SPACE = re.compile(r"(?<=[\u3000-\u9fff]) +| +(?=[\u3000-\u9fff])")
 _slots = threading.BoundedSemaphore(1)
 _cache_lock = threading.Lock()
-_cache: OrderedDict[tuple[str, int, tuple[int, ...]], dict[int, str]] = OrderedDict()
+_cache: OrderedDict[tuple[str, int, tuple[int, ...], tuple[int, ...]], dict[int, str]] = OrderedDict()
 
 # Apply OS limits in a fresh interpreter, NOT preexec_fn (unsafe in the
 # threaded catalog service). exec replaces that interpreter, so run(timeout)
@@ -63,7 +63,11 @@ class PdfOcrError(RuntimeError):
     """OCR is unavailable, exceeded a limit, or did not produce reliable text."""
 
 
-def _cached(key: tuple[str, int, tuple[int, ...]]) -> dict[int, str] | None:
+class _LowOcrQuality(PdfOcrError):
+    """Valid recognition output that can try one other full-page layout."""
+
+
+def _cached(key: tuple[str, int, tuple[int, ...], tuple[int, ...]]) -> dict[int, str] | None:
     with _cache_lock:
         pages = _cache.get(key)
         if pages is not None:
@@ -83,12 +87,14 @@ def extract_pdf_ocr(payload: bytes, *, page_count: int) -> str:
 
 def extract_pdf_ocr_pages(
     payload: bytes, *, page_count: int, page_numbers: tuple[int, ...] | None = None,
+    required_text_pages: tuple[int, ...] = (),
 ) -> dict[int, str]:
     """Return every requested 1-based page or fail the entire request.
 
     At most six pages share ONE slot and document deadline, even in a larger
     native PDF. A blank result means a verified entirely white raster, never
-    empty/failed OCR. The LRU includes content and selection. Recheck after
+    empty/failed OCR. Required text pages may never be accepted as blank.
+    The LRU includes content, selection and required text pages. Recheck after
     acquiring the single OCR slot to coalesce simultaneous requests for the
     same PDF. Errors and partial documents are never cached as successes.
     """
@@ -102,7 +108,10 @@ def extract_pdf_ocr_pages(
     if any(type(number) is not int or not 1 <= number <= page_count for number in numbers) or len(set(numbers)) != len(numbers):
         raise PdfOcrError("invalid OCR page selection")
     numbers = tuple(sorted(numbers))
-    key = (hashlib.sha256(payload).hexdigest(), page_count, numbers)
+    if any(type(number) is not int or number not in numbers for number in required_text_pages):
+        raise PdfOcrError("invalid required OCR text page selection")
+    required = tuple(sorted(set(required_text_pages)))
+    key = (hashlib.sha256(payload).hexdigest(), page_count, numbers, required)
     cached = _cached(key)
     if cached is not None:
         return cached
@@ -115,6 +124,9 @@ def extract_pdf_ocr_pages(
         pages = _extract_uncached(payload, numbers)
         if set(pages) != set(numbers):
             raise PdfOcrError("OCR returned an incomplete page selection")
+        for number in required:
+            if not pages[number].strip():
+                raise PdfOcrError(f"OCR found no text on required page {number}; consult the original PDF")
         with _cache_lock:
             _cache[key] = pages.copy()
             while len(_cache) > CACHE_ENTRIES:
@@ -147,6 +159,11 @@ def _run(command: list[str], deadline: float, stage: str) -> bytes:
             raise PdfOcrError(f"{stage} timed out") from exc
         except (OSError, subprocess.CalledProcessError) as exc:
             raise PdfOcrError(f"{stage} failed; check OCR tools and resource limits") from exc
+        # Poppler can exit successfully while omitting all glyphs for a font
+        # with a missing CMap. Do not OCR (or accept as blank) that partial
+        # raster. Stderr is already bounded on disk by the child file limit.
+        if stage.startswith("PDF rasterization") and errors.tell():
+            raise PdfOcrError(f"{stage} reported rendering errors; check PDF fonts and Poppler CMap data")
         output.seek(0)
         result = output.read(MAX_OUTPUT_BYTES + 1)
         if len(result) > MAX_OUTPUT_BYTES:
@@ -220,7 +237,7 @@ def _text_from_tsv(data: bytes, page: int) -> str:
     mean = confidence_total / max(1, characters)
     low_fraction = low_confidence / max(1, characters)
     if japanese < MIN_JAPANESE_CHARACTERS or mean < MIN_MEAN_CONFIDENCE or low_fraction > MAX_LOW_CONFIDENCE_FRACTION:
-        raise PdfOcrError(
+        raise _LowOcrQuality(
             f"low OCR quality on page {page} (confidence {mean:.1f}, "
             f"uncertain {low_fraction:.0%}, Japanese characters {japanese}); consult the original PDF"
         )
@@ -230,6 +247,27 @@ def _text_from_tsv(data: bytes, page: int) -> str:
     if len(text) > MAX_TEXT_CHARACTERS:
         raise PdfOcrError("OCR text exceeds safety limit")
     return text
+
+
+def _preserves_recognized_text(previous: bytes, recovered: str) -> bool:
+    """A different segmentation must not improve its score by omitting text.
+
+    Keep at least the previous character count and every confident token,
+    including repetitions, digits and negations. No uncertain words are
+    filtered from either candidate; the entire new TSV must pass the same
+    quality gate. Whitespace is the only normalization used for comparison.
+    """
+    rows = csv.DictReader(io.StringIO(previous.decode("utf-8")), delimiter="\t", quoting=csv.QUOTE_NONE)
+    words = [row for row in rows if row["level"] == "5" and row["text"].strip()]
+    compact = re.sub(r"\s+", "", recovered)
+    if len(compact) < sum(len(re.sub(r"\s+", "", row["text"])) for row in words):
+        return False
+    confident = Counter(re.sub(r"\s+", "", row["text"]) for row in words if float(row["conf"]) >= 80)
+    # Bound substring comparisons on adversarial TSVs, independently of the
+    # existing output and character limits. This only rejects a fallback.
+    if len(confident) > 1024:
+        return False
+    return all(compact.count(word) >= count for word, count in confident.items() if word)
 
 
 def _extract_uncached(payload: bytes, page_numbers: tuple[int, ...]) -> dict[int, str]:
@@ -262,7 +300,24 @@ def _extract_uncached(payload: bytes, page_numbers: tuple[int, ...]) -> dict[int
                 tesseract, str(image), "stdout", "-l", "jpn", "--oem", "1",
                 "--psm", "3", "-c", "tessedit_create_tsv=1",
             ], deadline, f"Japanese OCR page {number}")
-            pages[number] = _text_from_tsv(data, number)
+            try:
+                pages[number] = _text_from_tsv(data, number)
+            except _LowOcrQuality as original_error:
+                # Illustrated newsletters and separated calendar cells can
+                # confuse automatic block detection. Try sparse recognition
+                # ONCE on the same complete raster and shared deadline. Do
+                # not retry malformed output, tool failures or resource caps.
+                alternative = _run([
+                    tesseract, str(image), "stdout", "-l", "jpn", "--oem", "1",
+                    "--psm", "11", "-c", "tessedit_create_tsv=1",
+                ], deadline, f"Japanese OCR sparse layout page {number}")
+                try:
+                    recovered = _text_from_tsv(alternative, number)
+                except _LowOcrQuality as exc:
+                    raise PdfOcrError(f"{original_error}; sparse layout also failed: {exc}") from exc
+                if not _preserves_recognized_text(data, recovered):
+                    raise PdfOcrError(f"OCR sparse layout omitted recognized text on page {number}; consult the original PDF")
+                pages[number] = recovered
             image.unlink()
             if sum(map(len, pages.values())) + len(pages) - 1 > MAX_TEXT_CHARACTERS:
                 raise PdfOcrError("OCR text exceeds safety limit")

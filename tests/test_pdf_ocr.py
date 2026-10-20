@@ -269,6 +269,23 @@ class PdfOcrTests(unittest.TestCase):
             pdf_ocr.extract_pdf_ocr_pages(b"same", page_count=3, page_numbers=(2,))
             self.assertEqual(run.call_count, 4)
 
+    def test_corrupted_text_page_cannot_be_cached_as_successfully_blank(self):
+        with patch.object(pdf_ocr, "_extract_uncached", return_value={1: ""}) as work:
+            self.assertEqual(pdf_ocr.extract_pdf_ocr_pages(b"white", page_count=1), {1: ""})
+            for _ in range(2):
+                with self.assertRaisesRegex(pdf_ocr.PdfOcrError, "no text on required page 1"):
+                    pdf_ocr.extract_pdf_ocr_pages(b"white", page_count=1, required_text_pages=(1,))
+            self.assertEqual(work.call_count, 3)
+            # Only the ordinary, proven-blank raster entry is valid.
+            self.assertEqual(len(pdf_ocr._cache), 1)
+
+    def test_required_text_pages_must_belong_to_selected_pages(self):
+        with patch.object(pdf_ocr, "_extract_uncached") as work:
+            for required in ((0,), (2,), (True,), (1.0,)):
+                with self.subTest(required=required), self.assertRaisesRegex(pdf_ocr.PdfOcrError, "invalid required"):
+                    pdf_ocr.extract_pdf_ocr_pages(b"selection", page_count=2, page_numbers=(1,), required_text_pages=required)
+        work.assert_not_called()
+
     def test_content_cache_avoids_repeat_work(self):
         with patch.object(pdf_ocr, "_extract_uncached", return_value={1: GOOD_TEXT}) as work:
             self.assertEqual(pdf_ocr.extract_pdf_ocr(b"same bytes", page_count=1), GOOD_TEXT)
@@ -407,6 +424,92 @@ class PdfOcrTests(unittest.TestCase):
     def test_good_japanese_retains_lines_and_ascii_word_boundaries(self):
         data = tsv((GOOD_TEXT, 95, 1), ("日本", 95, 2), ("語", 95, 2), ("School", 95, 3), ("News", 95, 3))
         self.assertEqual(pdf_ocr._text_from_tsv(data, 1), GOOD_TEXT + "\n日本語\nSchool News")
+
+    def test_sparse_fallback_reads_same_full_image_once_with_same_deadline(self):
+        calls = []
+
+        def run(command, deadline, stage):
+            calls.append((command, deadline))
+            if "--list-langs" in command:
+                return b"jpn\n"
+            if command[0].endswith("pdftoppm"):
+                Path(command[-1]).with_suffix(".pgm").write_bytes(b"P5\n2 2\n255\n" + b"\x00" * 4)
+                return b""
+            mode = command[command.index("--psm") + 1]
+            return tsv((GOOD_TEXT, 40 if mode == "3" else 95, 1), ("10:30", 95, 2))
+
+        with patch.object(pdf_ocr.shutil, "which", side_effect=lambda tool: "/usr/bin/" + tool), patch.object(
+            pdf_ocr, "_run", side_effect=run
+        ):
+            self.assertEqual(pdf_ocr.extract_pdf_ocr(b"sparse", page_count=1), GOOD_TEXT + "\n10:30")
+        recognition = [command for command, _ in calls if "--psm" in command]
+        self.assertEqual([command[command.index("--psm") + 1] for command in recognition], ["3", "11"])
+        self.assertEqual(recognition[0][1], recognition[1][1])
+        self.assertEqual(len({deadline for _, deadline in calls}), 1)
+        self.assertFalse(Path(recognition[0][1]).exists())
+
+    def test_sparse_fallback_cannot_omit_confident_tokens_or_improve_by_shortening(self):
+        for baseline, alternative in (
+            (tsv((GOOD_TEXT, 40, 1), ("10:30", 95, 2)), tsv((GOOD_TEXT * 2, 95, 1), ("10:00", 95, 2))),
+            (tsv((GOOD_TEXT * 2, 40, 1)), tsv((GOOD_TEXT, 95, 1))),
+            (tsv((GOOD_TEXT, 40, 1), ("休み", 95, 2), ("休み", 95, 3)), tsv((GOOD_TEXT * 2, 95, 1), ("休み", 95, 2))),
+        ):
+            calls = []
+
+            def run(command, deadline, stage):
+                calls.append(command)
+                if "--list-langs" in command:
+                    return b"jpn\n"
+                if command[0].endswith("pdftoppm"):
+                    Path(command[-1]).with_suffix(".pgm").write_bytes(b"P5\n2 2\n255\n" + b"\x00" * 4)
+                    return b""
+                return baseline if command[command.index("--psm") + 1] == "3" else alternative
+
+            with self.subTest(baseline=baseline), patch.object(
+                pdf_ocr.shutil, "which", side_effect=lambda tool: "/usr/bin/" + tool
+            ), patch.object(pdf_ocr, "_run", side_effect=run), self.assertRaisesRegex(pdf_ocr.PdfOcrError, "omitted recognized text"):
+                pdf_ocr.extract_pdf_ocr(b"omission", page_count=1)
+            self.assertEqual(len(pdf_ocr._cache), 0)
+            self.assertEqual(len([command for command in calls if "--psm" in command]), 2)
+            self.assertFalse(Path(calls[-1][1]).exists())
+
+    def test_sparse_fallback_keeps_uncertain_words_and_rejects_both_bad_candidates(self):
+        calls = []
+
+        def run(command, deadline, stage):
+            calls.append(command)
+            if "--list-langs" in command:
+                return b"jpn\n"
+            if command[0].endswith("pdftoppm"):
+                Path(command[-1]).with_suffix(".pgm").write_bytes(b"P5\n2 2\n255\n" + b"\x00" * 4)
+                return b""
+            return tsv((GOOD_TEXT, 49, 1))
+
+        with patch.object(pdf_ocr.shutil, "which", side_effect=lambda tool: "/usr/bin/" + tool), patch.object(
+            pdf_ocr, "_run", side_effect=run
+        ), self.assertRaisesRegex(pdf_ocr.PdfOcrError, "sparse layout also failed"):
+            pdf_ocr.extract_pdf_ocr(b"both-bad", page_count=1)
+        self.assertEqual(len(pdf_ocr._cache), 0)
+        self.assertEqual(len([command for command in calls if "--psm" in command]), 2)
+
+    def test_invalid_tsv_does_not_start_segmentation_retry(self):
+        calls = []
+
+        def run(command, deadline, stage):
+            calls.append(command)
+            if "--list-langs" in command:
+                return b"jpn\n"
+            if command[0].endswith("pdftoppm"):
+                Path(command[-1]).with_suffix(".pgm").write_bytes(b"P5\n2 2\n255\n" + b"\x00" * 4)
+                return b""
+            return b"invalid tsv"
+
+        with patch.object(pdf_ocr.shutil, "which", side_effect=lambda tool: "/usr/bin/" + tool), patch.object(
+            pdf_ocr, "_run", side_effect=run
+        ), self.assertRaisesRegex(pdf_ocr.PdfOcrError, "invalid confidence"):
+            pdf_ocr.extract_pdf_ocr(b"invalid-tsv", page_count=1)
+        self.assertEqual(len([command for command in calls if "--psm" in command]), 1)
+        self.assertEqual(len(pdf_ocr._cache), 0)
 
     def test_low_confidence_blank_or_non_japanese_text_is_rejected(self):
         for data in (HEADER.encode(), tsv((GOOD_TEXT, 40, 1)), tsv(("English only " * 40, 95, 1))):
@@ -569,6 +672,17 @@ class PdfOcrTests(unittest.TestCase):
             self.assertEqual(run.call_args.kwargs["env"]["OMP_THREAD_LIMIT"], "1")
             self.assertNotIn("shell", run.call_args.kwargs)
             self.assertNotIn("preexec_fn", run.call_args.kwargs)
+
+    def test_renderer_success_exit_with_missing_cmap_or_font_is_failure(self):
+        for warning in (b"Syntax Error: Missing language pack for 'Adobe-Japan1' mapping\n",
+                        b"Syntax Error: Unknown font tag 'F0'\n"):
+            def run(*args, **kwargs):
+                kwargs["stderr"].write(warning)
+
+            with self.subTest(warning=warning), patch.object(pdf_ocr.subprocess, "run", side_effect=run), self.assertRaisesRegex(
+                pdf_ocr.PdfOcrError, "rendering errors.*CMap"
+            ):
+                pdf_ocr._run(["/usr/bin/pdftoppm"], time.monotonic() + 100, "PDF rasterization page 2")
 
     @unittest.skipUnless(sys.platform in ("darwin", "linux"), "POSIX resource limits")
     def test_real_child_resource_limits_output_limit_and_timeout(self):
