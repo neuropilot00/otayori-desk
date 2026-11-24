@@ -6,6 +6,7 @@ TOKYO = ZoneInfo("Asia/Tokyo")
 HOURS = (10, 19)
 GRACE = timedelta(minutes=20)
 DELIVERY_DELAY = timedelta(minutes=12)
+DELIVERY_DEADLINE = timedelta(minutes=18)
 
 
 def latest_slot(now):
@@ -28,3 +29,17 @@ def overdue(scanned_at, now=None):
         return datetime.fromisoformat(scanned_at) < latest_slot(now - GRACE)
     except (ValueError, TypeError):
         return True
+
+def checked_this_slot(scanned_at, slot):
+    try:
+        return datetime.fromisoformat(scanned_at) >= slot
+    except (ValueError, TypeError):
+        return False
+
+
+def delivery_slot(ready, now=None):
+    now = now or datetime.now(timezone.utc)
+    slot = active_slot(now, delay=DELIVERY_DELAY)
+    if slot and (now - slot >= DELIVERY_DEADLINE or ready(slot)):
+        return slot
+    return None

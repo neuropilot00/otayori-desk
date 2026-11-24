@@ -24,7 +24,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from .extractor import normalize_grade
-from .notice_schedule import DELIVERY_DELAY, active_slot
+from .notice_schedule import DELIVERY_DELAY, active_slot, checked_this_slot, delivery_slot
 from .web_catalog import CatalogError, CatalogService, SOURCE_GROUP_LABELS
 
 CONSENT_VERSION = "2026-10-01"
@@ -768,7 +768,7 @@ class WebPushNotifier:
             try:
                 if not self._fixed_cadence:
                     self.scan_subscriptions()
-                elif (slot := active_slot(delay=DELIVERY_DELAY)) and self.catalog.claim_notice_slot("push", slot):
+                elif (slot := delivery_slot(self.catalog.notice_slot_ready)) and self.catalog.claim_notice_slot("push", slot):
                     self.scan_subscriptions()
             except Exception:
                 # Upstream or push provider failure must not stop the server.
@@ -791,6 +791,9 @@ class WebPushNotifier:
     def _scan_scope(self, scope: dict[str, str]) -> None:
         if not self.store:
             return
+        slot = active_slot(delay=DELIVERY_DELAY) if self._fixed_cadence else None
+        if self._fixed_cadence and slot is None:
+            return
         try:
             results = self.catalog.get_many(
                 source_id=scope["source_id"], grade=scope["grade"],
@@ -803,7 +806,8 @@ class WebPushNotifier:
         results = [result for result in results
                    if getattr(result.source, "coverage_kind", "notices") != "reference"
                    and not result.warnings and not getattr(result, "refreshing", False)
-                   and (not self._fixed_cadence or getattr(result, "freshness_status", "") == "fresh")
+                   and (slot is None or (getattr(result, "freshness_status", "") == "fresh"
+                                          and checked_this_slot(result.scanned_at, slot)))
                    and not any(getattr(notice, "extraction_status", "ok") != "ok"
                                for notice in result.notices
                                if getattr(notice, "coverage_kind", "notices") != "reference")]

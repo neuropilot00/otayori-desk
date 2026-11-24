@@ -34,7 +34,7 @@ from .formatter import KIND_LABELS, categorize_text
 from .notice_dates import activity_dates, publication_date, calendar_date
 from .notice_audience import matches_audience
 from .catalog_watchdog import CatalogDispatchWatchdog
-from .notice_schedule import active_slot, overdue
+from .notice_schedule import active_slot, checked_this_slot, overdue
 
 
 class CatalogError(RuntimeError):
@@ -998,12 +998,28 @@ class CatalogService:
             if self._refresh_stop.wait(15 if self._fixed_cadence else interval_seconds):
                 return
 
+    def _notice_source_grades(self):
+        return (
+            (source, grade)
+            for source in self.sources if source.enabled
+            for grade in (source.grades if source.source_group == "school" else (source.default_grade,))
+        )
+
+    def notice_slot_ready(self, slot: datetime) -> bool:
+        # A late external import or local OCR may still be running at :12.
+        for source, grade in self._notice_source_grades():
+            if source.coverage_kind == "reference":
+                continue
+            cached = self._last_cached(source, grade)
+            if not cached or not checked_this_slot(cached[1].scanned_at, slot):
+                return False
+        return True
+
     def _collect_notice_slot(self) -> None:
         futures = [
             self._submit_source(source, grade, True)
-            for source in self.sources if source.enabled
-            and not (self._scheduled_collection and source.collection_driver == "scheduled")
-            for grade in (source.grades if source.source_group == "school" else (source.default_grade,))
+            for source, grade in self._notice_source_grades()
+            if not (self._scheduled_collection and source.collection_driver == "scheduled")
         ]
         wait(futures)
 

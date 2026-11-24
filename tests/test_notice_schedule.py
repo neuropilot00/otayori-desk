@@ -9,7 +9,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from sakurano_line_notifier.config import Settings
-from sakurano_line_notifier.notice_schedule import DELIVERY_DELAY, active_slot, overdue
+from sakurano_line_notifier.notice_schedule import DELIVERY_DELAY, active_slot, checked_this_slot, delivery_slot, overdue
 from sakurano_line_notifier.web_catalog import CatalogCacheStore, CatalogResult, CatalogService
 from sakurano_line_notifier.web_server import _BetaHTTPServer, BetaRequestHandler
 
@@ -27,6 +27,17 @@ class FixedCadenceTests(TestCase):
         previous = "2026-11-24T10:02:00+00:00"
         self.assertFalse(overdue(previous, stamp("2026-11-25T01:19:59+00:00")))
         self.assertTrue(overdue(previous, stamp("2026-11-25T01:20:00+00:00")))
+
+    def test_delivery_waits_for_snapshot_or_deadline(self):
+        ready = lambda slot: False
+        early = stamp("2026-11-25T01:12:00+00:00")
+        late = stamp("2026-11-25T01:14:00+00:00")
+        self.assertIsNone(delivery_slot(ready, early))
+        self.assertEqual(delivery_slot(lambda slot: checked_this_slot(late.isoformat(), slot), late), active_slot(late))
+        self.assertIsNone(delivery_slot(ready, stamp("2026-11-25T01:17:59+00:00")))
+        self.assertIsNotNone(delivery_slot(ready, stamp("2026-11-25T01:18:00+00:00")))
+        self.assertIsNone(delivery_slot(ready, stamp("2026-11-25T01:20:00+00:00")))
+        self.assertFalse(checked_this_slot("2026-11-24T10:03:00+00:00", active_slot(late)))
 
     def test_persistent_claim_across_restarts(self):
         with TemporaryDirectory() as d:
