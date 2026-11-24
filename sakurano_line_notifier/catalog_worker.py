@@ -14,6 +14,7 @@ import requests
 
 from .catalog_sync import snapshot_payload
 from .config import Settings
+from .notice_schedule import active_slot
 from .web_catalog import CatalogService
 
 
@@ -145,6 +146,9 @@ def main() -> int:
     parser.add_argument("--config", type=Path, default=Path("config.json"))
     parser.add_argument("--sources", type=Path, default=Path("sources.json"))
     args = parser.parse_args()
+    if os.getenv("OTAYORI_AUTOMATED_RUN", "").lower() == "true" and active_slot() is None:
+        _log("-", 0, "skipped", "outside_notice_slot")
+        return 0
     client = None
     service = None
     try:

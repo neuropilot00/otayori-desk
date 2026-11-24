@@ -24,6 +24,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from .extractor import normalize_grade
+from .notice_schedule import DELIVERY_DELAY, active_slot
 from .web_catalog import CatalogError, CatalogService, SOURCE_GROUP_LABELS
 
 CONSENT_VERSION = "2026-10-01"
@@ -663,6 +664,7 @@ class WebPushNotifier:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._scanner_lock = threading.Lock()
+        self._fixed_cadence = False
 
     @property
     def browser_enabled(self) -> bool:
@@ -677,7 +679,7 @@ class WebPushNotifier:
         return {
             "enabled": self.browser_enabled, "sending_enabled": self.sending_enabled,
             "public_key": self.public_key if self.browser_enabled else None,
-            "scan_interval_seconds": int(self.interval),
+            **({"schedule_jst": ["10:00", "19:00"]} if self._fixed_cadence else {"scan_interval_seconds": int(self.interval)}),
             "consent_version": CONSENT_VERSION, "retention_days": RETENTION_DAYS,
         }
 
@@ -748,10 +750,11 @@ class WebPushNotifier:
         """For operator logs only; server must not expose global counts."""
         return self.store.legacy_reconsent_count() if self.store else 0
 
-    def start(self) -> None:
+    def start(self, *, fixed_cadence: bool = False) -> None:
         with self._scanner_lock:
             if not self.sending_enabled or self._thread is not None:
                 return
+            self._fixed_cadence = fixed_cadence
             self._thread = threading.Thread(target=self._run, name="web-push-scanner", daemon=True)
             self._thread.start()
 
@@ -761,9 +764,12 @@ class WebPushNotifier:
             self._thread.join(timeout=2)
 
     def _run(self) -> None:
-        while not self._stop.wait(self.interval):
+        while not self._stop.wait(15 if self._fixed_cadence else self.interval):
             try:
-                self.scan_subscriptions()
+                if not self._fixed_cadence:
+                    self.scan_subscriptions()
+                elif (slot := active_slot(delay=DELIVERY_DELAY)) and self.catalog.claim_notice_slot("push", slot):
+                    self.scan_subscriptions()
             except Exception:
                 # Upstream or push provider failure must not stop the server.
                 continue
@@ -788,7 +794,7 @@ class WebPushNotifier:
         try:
             results = self.catalog.get_many(
                 source_id=scope["source_id"], grade=scope["grade"],
-                feed_group=scope["feed"], source_group=scope["group"], refresh=True,
+                feed_group=scope["feed"], source_group=scope["group"], refresh=not self._fixed_cadence,
             )
         except CatalogError:
             return
@@ -797,6 +803,7 @@ class WebPushNotifier:
         results = [result for result in results
                    if getattr(result.source, "coverage_kind", "notices") != "reference"
                    and not result.warnings and not getattr(result, "refreshing", False)
+                   and (not self._fixed_cadence or getattr(result, "freshness_status", "") == "fresh")
                    and not any(getattr(notice, "extraction_status", "ok") != "ok"
                                for notice in result.notices
                                if getattr(notice, "coverage_kind", "notices") != "reference")]
@@ -840,6 +847,8 @@ class WebPushNotifier:
                             if source_keys[notice["source_id"]] in newly_covered and notice_id not in previous_known)
             pending = [notice for notice_id, notice in current.items() if notice_id not in accepted]
             if pending:
+                if self._fixed_cadence and active_slot(delay=DELIVERY_DELAY) is None:
+                    continue
                 if not self.sending_enabled or not self.store.is_current(record):
                     continue
                 try:

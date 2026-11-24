@@ -496,9 +496,9 @@ class BetaRequestHandler(BaseHTTPRequestHandler):
 def run_server(catalog: CatalogService, host: str = "127.0.0.1", port: int = 8765, settings: Any | None = None) -> None:
     push_notifier = WebPushNotifier(catalog, settings) if settings is not None else None
     server = _BetaHTTPServer((host, port), BetaRequestHandler, catalog, push_notifier)
-    catalog.start_background_refresh(getattr(settings, "web_catalog_refresh_interval_seconds", 900.0) if settings is not None else 900.0)
+    catalog.start_background_refresh(fixed_cadence=True)
     if push_notifier:
-        push_notifier.start()
+        push_notifier.start(fixed_cadence=True)
     print(f"school-news-beta listening at http://{host}:{port}", flush=True)
     try:
         server.serve_forever()

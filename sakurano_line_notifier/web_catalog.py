@@ -34,6 +34,7 @@ from .formatter import KIND_LABELS, categorize_text
 from .notice_dates import activity_dates, publication_date, calendar_date
 from .notice_audience import matches_audience
 from .catalog_watchdog import CatalogDispatchWatchdog
+from .notice_schedule import active_slot, overdue
 
 
 class CatalogError(RuntimeError):
@@ -260,6 +261,7 @@ class CatalogCacheStore:
                 )
                 """
             )
+            connection.execute("CREATE TABLE IF NOT EXISTS notice_schedule_claims (kind TEXT PRIMARY KEY, slot TEXT NOT NULL)")
         try:
             self.path.chmod(0o600)
         except OSError:
@@ -275,6 +277,13 @@ class CatalogCacheStore:
                 yield connection
         finally:
             connection.close()
+
+    def claim(self, kind: str, slot: datetime) -> bool:
+        with self._lock, self._connect() as connection:
+            return connection.execute(
+                "INSERT INTO notice_schedule_claims VALUES (?, ?) ON CONFLICT(kind) DO UPDATE SET slot=excluded.slot WHERE excluded.slot > notice_schedule_claims.slot",
+                (kind, slot.isoformat()),
+            ).rowcount == 1
 
     @staticmethod
     def _source_fingerprint(source: SourceConfig) -> str:
@@ -891,6 +900,8 @@ class CatalogService:
         self._recovery_thread: threading.Thread | None = None
         self._recovery_wake = threading.Event()
         self._recovery_force = False
+        self._fixed_cadence = False
+        self._local_claims: dict[str, datetime] = {}
         self._scheduled_pending_since: datetime | None = None
         self._scheduled_pending_until = 0.0
         self._scheduled_request_status: str | None = None
@@ -913,12 +924,30 @@ class CatalogService:
                 return False
         return True
 
-    def start_background_refresh(self, interval_seconds: float = 900.0) -> None:
+    def claim_notice_slot(self, kind: str, slot: datetime) -> bool:
+        if self._cache_store:
+            return self._cache_store.claim(kind, slot)
+        with self._lock:
+            if kind in self._local_claims and self._local_claims[kind] >= slot:
+                return False
+            self._local_claims[kind] = slot
+            return True
+
+    def _is_overdue(self, stamp: str, now: datetime | None = None) -> bool:
+        if getattr(self, "_fixed_cadence", False):
+            return overdue(stamp, now)
+        try:
+            return ((now or datetime.now(timezone.utc)) - datetime.fromisoformat(stamp)).total_seconds() >= CatalogDispatchWatchdog.stale_after_seconds
+        except (ValueError, TypeError):
+            return True
+
+    def start_background_refresh(self, interval_seconds: float = 900.0, *, fixed_cadence: bool = False) -> None:
         """Keep the public catalog warm without making parents wait for upstream PDFs."""
         interval = max(60.0, float(interval_seconds))
         with self._lock:
             if any(thread is not None and thread.is_alive() for thread in (self._refresh_thread, self._recovery_thread)):
                 return
+            self._fixed_cadence = fixed_cadence
             self._refresh_thread = None
             self._recovery_thread = None
             if self._scheduled_collection and not self._dispatch_watchdog.enabled:
@@ -959,12 +988,24 @@ class CatalogService:
     def _refresh_loop(self, interval_seconds: float) -> None:
         while not self._refresh_stop.is_set():
             try:
-                results = self.get_many(source_id="all", refresh=True)
+                if not self._fixed_cadence:
+                    self.get_many(source_id="all", refresh=True)
+                elif (slot := active_slot()) and self.claim_notice_slot("collect", slot):
+                    self._collect_notice_slot()
             except Exception as exc:
                 # A single source must not stop the catalog refresh loop.
                 logging.getLogger(__name__).warning("catalog_refresh_failed type=%s", type(exc).__name__)
-            if self._refresh_stop.wait(interval_seconds):
+            if self._refresh_stop.wait(15 if self._fixed_cadence else interval_seconds):
                 return
+
+    def _collect_notice_slot(self) -> None:
+        futures = [
+            self._submit_source(source, grade, True)
+            for source in self.sources if source.enabled
+            and not (self._scheduled_collection and source.collection_driver == "scheduled")
+            for grade in (source.grades if source.source_group == "school" else (source.default_grade,))
+        ]
+        wait(futures)
 
     def _recovery_loop(self) -> None:
         # Do not queue recovery behind school PDF/OCR work or wait another
@@ -982,6 +1023,8 @@ class CatalogService:
             return "not_required"
         with self._lock:
             force, self._recovery_force = self._recovery_force, False
+        if self._fixed_cadence and not force:
+            return "manual_only"
         results = [self.get_source(source.id, source.default_grade) for source in self.sources
                    if source.enabled and source.collection_driver == "scheduled"]
         outcome = self._dispatch_watchdog.check(results, force=force)
@@ -1052,12 +1095,13 @@ class CatalogService:
             except (ValueError, TypeError):
                 age = None
             rows.append({"source_id": source.id, "checked_at": checked, "age_seconds": round(age, 1) if age is not None else None,
-                         "stale": age is None or age >= CatalogDispatchWatchdog.stale_after_seconds})
+                         "stale": self._is_overdue(checked, now)})
         recovery = self._dispatch_watchdog.status()
         recovery["running"] = not self._refresh_stop.is_set() and self._recovery_thread is not None and self._recovery_thread.is_alive()
         delayed = sum(row["stale"] for row in rows)
         operational = recovery["enabled"] and recovery["running"] and recovery["last_result"] not in {"authentication_failed", "network_failed", "http_failed"}
-        return {"ok": not delayed and (not self._scheduled_collection or not rows or operational),
+        return {"ok": not delayed and (self._fixed_cadence or not self._scheduled_collection or not rows or operational),
+                **({"schedule_jst": ["10:00", "19:00"], "automatic_recovery": False} if self._fixed_cadence else {}),
                 "scheduled_mode": self._scheduled_collection, "scheduled_sources": len(rows),
                 "delayed_sources": delayed, "recovery": recovery, "sources": rows}
 
@@ -1070,8 +1114,7 @@ class CatalogService:
             if not cached:
                 return CatalogResult(source, effective_grade, "", (), ("定期収集の初回データを待っています。公式ページをご確認ください。",), freshness_status="pending", refreshing=self._scheduled_refreshing(""), refresh_request_status=self._scheduled_refresh_status(""))
             result = cached[1]
-            age = (datetime.now(timezone.utc) - datetime.fromisoformat(result.scanned_at)).total_seconds()
-            if age >= CatalogDispatchWatchdog.stale_after_seconds:
+            if self._is_overdue(result.scanned_at):
                 return replace(result, warnings=("定期収集が遅れています。前回確認した情報です。公式ページもご確認ください。",), freshness_status="stale", refreshing=self._scheduled_refreshing(result.scanned_at), refresh_request_status=self._scheduled_refresh_status(result.scanned_at))
             return replace(result, refreshing=self._scheduled_refreshing(result.scanned_at), refresh_request_status=self._scheduled_refresh_status(result.scanned_at))
         if not refresh and cached and time.monotonic() - cached[0] < self._cache_ttl_seconds:
@@ -1097,7 +1140,7 @@ class CatalogService:
         # Preserve discovered original links across restarts too. Failure
         # warnings/readability/freshness travel with the snapshot; this is not
         # an OCR success cache or a notification-success record.
-        if self._cache_store and result.notices:
+        if self._cache_store and (result.notices or (self._fixed_cadence and not result.warnings)):
             self._cache_store.save(result)
         return result
 
@@ -1217,6 +1260,18 @@ class CatalogService:
             return True
         effective_grade = self._effective_grade(source, grade)
         cached = self._last_cached(source, effective_grade)
+        if getattr(self, "_fixed_cadence", False) and not refresh:
+            with self._lock:
+                inflight = self._inflight.get((source.id, effective_grade))
+                pending = inflight is not None and not inflight.done()
+            if cached:
+                result = cached[1]
+                if self._is_overdue(result.scanned_at) and not result.warnings:
+                    result = replace(result, warnings=("定期収集が遅れています。前回確認した情報です。公式ページもご確認ください。",), freshness_status="stale")
+                results[source.id] = replace(result, refreshing=pending)
+            else:
+                results[source.id] = CatalogResult(source, effective_grade, "", (), (), freshness_status="pending", refreshing=pending)
+            return True
         if cached:
             with self._lock:
                 inflight = self._inflight.get((source.id, effective_grade))

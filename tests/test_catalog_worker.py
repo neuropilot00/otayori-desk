@@ -322,9 +322,9 @@ class CatalogWorkerTests(unittest.TestCase):
         self.assertNotIn(URL, output.getvalue())
         self.client.close.assert_called_once()
 
-    def test_workflow_is_main_only_half_hourly_and_scopes_secrets_to_worker(self):
+    def test_workflow_is_main_only_twice_daily_and_scopes_secrets_to_worker(self):
         workflow = (ROOT / ".github/workflows/catalog-sync.yml").read_text(encoding="utf-8")
-        self.assertIn("cron: '7,37 * * * *'", workflow)
+        self.assertIn("cron: '0 1,10 * * *'", workflow)
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("github.ref == 'refs/heads/main'", workflow)
         self.assertIn("github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'", workflow)
